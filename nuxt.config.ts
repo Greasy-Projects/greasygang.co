@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 	css: [
+		"@/public/reset.css",
 		"@unocss/reset/normalize.css",
 		"@unocss/reset/sanitize/sanitize.css",
 		"@unocss/reset/sanitize/assets.css",
@@ -10,7 +11,7 @@ export default defineNuxtConfig({
 	devtools: { enabled: true },
 	modules: ["@unocss/nuxt", "@nuxtjs/google-fonts", "@nuxt/image"],
 	googleFonts: {
-		families: { "IBM Plex Sans": true },
+		families: { "IBM Plex Sans": true, "Bebas Neue": true },
 		preload: true,
 	},
 	image: {

@@ -18,6 +18,7 @@ export default defineConfig({
 		presetWebFonts({
 			fonts: {
 				IBM: "IBM Plex Sans",
+				BEBAS: "Bebas Neue",
 			},
 		}),
 	],
