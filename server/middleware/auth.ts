@@ -3,11 +3,15 @@ import type { Session, User } from "lucia";
 import { lucia } from "../utils/auth";
 
 // https://lucia-auth.com/getting-started/nuxt
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
 	if (event.method !== "GET") {
 		const originHeader = getHeader(event, "Origin") ?? null;
 		const hostHeader = getHeader(event, "Host") ?? null;
-		if (!originHeader || !hostHeader || !verifyRequestOrigin(originHeader, [hostHeader])) {
+		if (
+			!originHeader ||
+			!hostHeader ||
+			!verifyRequestOrigin(originHeader, [hostHeader])
+		) {
 			return event.node.res.writeHead(403).end();
 		}
 	}
@@ -22,10 +26,18 @@ export default defineEventHandler(async (event) => {
 
 	const { session, user } = await lucia.validateSession(sessionId);
 	if (session && session.fresh) {
-		appendResponseHeader(event, "Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+		appendResponseHeader(
+			event,
+			"Set-Cookie",
+			lucia.createSessionCookie(session.id).serialize()
+		);
 	}
 	if (!session) {
-		appendResponseHeader(event, "Set-Cookie", lucia.createBlankSessionCookie().serialize());
+		appendResponseHeader(
+			event,
+			"Set-Cookie",
+			lucia.createBlankSessionCookie().serialize()
+		);
 	}
 	event.context.session = session;
 	event.context.user = user;
