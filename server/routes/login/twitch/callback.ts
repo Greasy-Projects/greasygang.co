@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
         if(existingUser) {
             const session = await lucia.createSession(existingUser.id, {});
             appendResponseHeader(event, "Set-Cookie", lucia.createSessionCookie(session.id).serialize());
-            return sendRedirect(event, '/');
+            return sendRedirect(event, '/dashboard');
         }
 
         const userId = generateId(15);
@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
         });
         const session = await lucia.createSession(userId, {});
         appendResponseHeader(event, "Set-Cookie", lucia.createSessionCookie(session.id).serialize());
-        return sendRedirect(event, '/');
+        return sendRedirect(event, '/dashboard');
     } catch(e) {
         if(e instanceof OAuth2RequestError) {
             throw createError({
