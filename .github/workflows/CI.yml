@@ -1,12 +1,11 @@
-name: CI
-on: [push, pull_request]
+name: Build and Lint
+on: [pull_request]
 
 jobs:
   test:
-    name: Install dependencies and build
+    name: Build and Lint
     runs-on: ubuntu-latest
     steps:
-    
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -18,9 +17,12 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          
+
       - name: Install dependencies
         run: pnpm install
 
       - name: Build
         run: pnpm build
+      
+      - name: Lint
+        run: pnpm lint:ci

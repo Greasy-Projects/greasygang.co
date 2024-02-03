@@ -1,7 +1,7 @@
-// module.exports = {
-//   extends: ["@recodive/eslint-config/vue"],
-//   // parserOptions: {
-//   //   project: ["./tsconfig.json"],
-//   //   tsconfigRootDir: __dirname,
-//   // },
-// };
+module.exports = {
+	extends: ["@nuxt/eslint-config", "prettier"],
+	// parserOptions: {
+	//   project: ["./tsconfig.json"],
+	//   tsconfigRootDir: __dirname,
+	// },
+};

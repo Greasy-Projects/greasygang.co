@@ -3,13 +3,13 @@ import { library, config } from "@fortawesome/fontawesome-svg-core";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { fas } from "@fortawesome/free-solid-svg-icons";
 import {
-  faDiscord,
-  faTwitch,
-  faTiktok,
-  faYoutube,
-  faTwitter,
-  faSpotify,
-  faGithub,
+	faDiscord,
+	faTwitch,
+	faTiktok,
+	faYoutube,
+	faTwitter,
+	faSpotify,
+	faGithub,
 } from "@fortawesome/free-brands-svg-icons";
 
 // This is important, we are going to let Nuxt worry about the CSS
@@ -19,15 +19,15 @@ config.autoAddCss = false;
 // can add other styles or just individual icons.
 library.add(fas);
 library.add(
-  faDiscord,
-  faTwitch,
-  faTiktok,
-  faYoutube,
-  faTwitter,
-  faSpotify,
-  faGithub
+	faDiscord,
+	faTwitch,
+	faTiktok,
+	faYoutube,
+	faTwitter,
+	faSpotify,
+	faGithub
 );
 
-export default defineNuxtPlugin((nuxtApp) => {
-  nuxtApp.vueApp.component("font-awesome-icon", FontAwesomeIcon);
+export default defineNuxtPlugin(nuxtApp => {
+	nuxtApp.vueApp.component("font-awesome-icon", FontAwesomeIcon);
 });
