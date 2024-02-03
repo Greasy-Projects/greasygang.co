@@ -1,6 +1,7 @@
 import { OAuth2RequestError } from "arctic";
 import { generateId } from "lucia";
-import { db, lucia, twitch } from "~/server/utils/auth";
+import { db } from "~/server/utils/db";
+import { lucia, twitch } from "~/server/utils/auth";
 import { userTable } from "~/server/utils/schema";
 import { eq } from "drizzle-orm";
 
@@ -49,7 +50,7 @@ export default defineEventHandler(async event => {
 			{
 				headers: {
 					Authorization: `Bearer ${tokens.accessToken}`,
-					"Client-Id": process.env.TWTICH_CLIENT_ID || "",
+					"Client-Id": process.env.TWITCH_CLIENT_ID || "",
 				},
 			}
 		);

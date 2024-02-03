@@ -1,11 +1,4 @@
-import {
-	mysqlTable,
-	int,
-	varchar,
-	text,
-	datetime,
-} from "drizzle-orm/mysql-core";
-import { relations } from "drizzle-orm";
+import { mysqlTable, varchar, text, datetime } from "drizzle-orm/mysql-core";
 
 export const userTable = mysqlTable("user", {
 	id: varchar("id", {
