@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
 	}
 
 	const sessionId = getCookie(event, lucia.sessionCookieName) ?? null;
+
 	if (!sessionId) {
 		event.context.session = null;
 		event.context.user = null;
@@ -26,7 +27,6 @@ export default defineEventHandler(async (event) => {
 	if (!session) {
 		appendResponseHeader(event, "Set-Cookie", lucia.createBlankSessionCookie().serialize());
 	}
-    console.log('session', session, 'user', user)
 	event.context.session = session;
 	event.context.user = user;
 });

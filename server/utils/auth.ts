@@ -1,12 +1,21 @@
 // server/utils/auth.ts
 import { Lucia } from "lucia";
-import { PrismaAdapter } from "@lucia-auth/adapter-prisma";
-import { PrismaClient } from "@prisma/client";
 import { Twitch } from 'arctic'
 
-export const client = new PrismaClient();
+import { DrizzleMySQLAdapter } from "@lucia-auth/adapter-drizzle";
+import { sessionTable, userTable } from './schema';
+import { drizzle } from "drizzle-orm/mysql2";
+import  mysql from 'mysql2';
 
-const adapter = new PrismaAdapter(client.session, client.user)
+const connection = mysql.createConnection({
+	host: process.env.DB_HOST || 'localhost',
+	user: process.env.DB_USER || 'root',
+	password: process.env.DB_PASS || '',
+	database: process.env.DB_NAME || 'greasy'
+});
+
+export const db = drizzle(connection);
+const adapter = new DrizzleMySQLAdapter(db, sessionTable, userTable);
 
 export const lucia = new Lucia(adapter, {
 	sessionCookie: {

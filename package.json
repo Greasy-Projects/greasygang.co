@@ -5,16 +5,22 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "generate": "nuxt generate",
+    "generate": "drizzle-kit generate:mysql --out ./drizzle/migrations --breakpoints --schema server/utils/schema.ts",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "studio": "drizzle-kit studio --port 3333",
+    "migrate": "tsx drizzle/migrate",
+    "db:seed": "tsx drizzle/seed"
   },
   "devDependencies": {
     "@nuxtjs/google-fonts": "^3.1.3",
+    "@types/node": "^20.11.16",
     "@unocss/nuxt": "^0.58.4",
+    "drizzle-kit": "^0.20.14",
     "eslint": "^8.56.0",
     "nuxt": "^3.9.3",
+    "tsx": "^4.7.0",
     "vue": "^3.4.14",
     "vue-router": "^4.2.5"
   },
@@ -24,12 +30,14 @@
     "@fortawesome/free-brands-svg-icons": "^6.5.1",
     "@fortawesome/free-solid-svg-icons": "^6.5.1",
     "@fortawesome/vue-fontawesome": "^3.0.6",
-    "@lucia-auth/adapter-prisma": "^4.0.0",
+    "@lucia-auth/adapter-drizzle": "^1.0.0",
     "@nuxt/image": "^1.3.0",
     "@recodive/eslint-config": "^1.5.0",
     "@unocss/reset": "^0.58.4",
     "arctic": "^1.1.4",
+    "drizzle-orm": "^0.29.3",
     "lucia": "^3.0.1",
+    "mysql2": "^3.9.1",
     "oslo": "^1.0.4"
   }
 }

@@ -1,6 +1,8 @@
 import { OAuth2RequestError } from "arctic";
 import { generateId } from "lucia";
-import { client, lucia, twitch } from "~/server/utils/auth";
+import { db, lucia, twitch } from "~/server/utils/auth";
+import { userTable } from "~/server/utils/schema";
+import { eq } from "drizzle-orm";
 
 export interface TwitchTokens {
 	accessToken: string;
@@ -31,11 +33,11 @@ export default defineEventHandler(async (event) => {
 	const state = query.state?.toString() ?? null;
     const storedState = getCookie(event, 'twitch_oauth_state') ?? null;
 
-	if (!code || !state || !storedState || state !== storedState) {
-		throw createError({
-			status: 400
-		});
-	}
+    if (!code || !state || !storedState || state !== storedState) {
+        throw createError({
+            statusCode: 400
+        });
+    }
 
     try {
         // validate authorization code
@@ -52,11 +54,11 @@ export default defineEventHandler(async (event) => {
         const twitchUser: TwitchUserResponse = await twitchUserResponse.json();
         
         // check if user exists in database
-        const existingUser = await client.user.findUnique({
-            where: {
-                twitchId: twitchUser.data[0].id
-            }
-        });
+        const [ existingUser ] = await db.select()
+            .from(userTable)
+            .where(eq(userTable.twitchId, twitchUser.data[0].id))
+            .limit(1);
+
 
         if(existingUser) {
             const session = await lucia.createSession(existingUser.id, {});
@@ -65,16 +67,14 @@ export default defineEventHandler(async (event) => {
         }
 
         const userId = generateId(15);
-        await client.user.create({
-            data: {
-                id: userId,
-                twitchId: twitchUser.data[0].id,
-                username: twitchUser.data[0].login,
-                display_name: twitchUser.data[0].display_name,
-                avatar: twitchUser.data[0].profile_image_url,
-                created_at: new Date(),
-                updated_at: new Date()
-            }
+        await db.insert(userTable).values({
+            id: userId,
+            username: twitchUser.data[0].login,
+            twitchId: twitchUser.data[0].id,
+            display_name: twitchUser.data[0].display_name,
+            avatar: twitchUser.data[0].profile_image_url,
+            created_at: new Date(),
+            updated_at: new Date()
         });
         const session = await lucia.createSession(userId, {});
         appendResponseHeader(event, "Set-Cookie", lucia.createSessionCookie(session.id).serialize());
@@ -82,12 +82,11 @@ export default defineEventHandler(async (event) => {
     } catch(e) {
         if(e instanceof OAuth2RequestError) {
             throw createError({
-                status: 400
+                statusCode: 400
             });
         }
-        console.log(e)
         throw createError({
-            status: 500
+            statusCode: 500
         });
     }
 });
