@@ -8,7 +8,11 @@ export default defineNuxtConfig({
     "@fortawesome/fontawesome-svg-core/styles.css",
   ],
   devtools: { enabled: true },
-  modules: ["@unocss/nuxt", "@nuxtjs/google-fonts", "@nuxt/image"],
+  modules: [
+    "@unocss/nuxt",
+    "@nuxtjs/google-fonts",
+    "@nuxt/image"
+  ],
   googleFonts: {
     families: { "IBM Plex Sans": true },
     preload: true,
