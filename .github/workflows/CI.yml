@@ -6,9 +6,9 @@ jobs:
     name: Install dependencies and build
     runs-on: ubuntu-latest
     steps:
-              
-     - name: Setup pnpm
-       uses: pnpm/action-setup@v2.4.0
+    
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2.4.0
 
       - name: Checkout repository
         uses: actions/checkout@v4
