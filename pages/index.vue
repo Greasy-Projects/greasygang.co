@@ -71,18 +71,19 @@
     </symbol>
   </svg>
   <NuxtImg
-    src="bg.png"
-    class="h-screen object-cover object-bottom absolute w-full -z-10"
-    width="1000"
+    src="/bg.png"
+    class="h-screen transition-all  object-cover object-bottom absolute w-full -z-10"
+    :modifiers="{ blur: '5' }"
+    height="500"
+    width="500"
   ></NuxtImg>
   <div
     class="font-IBM justify-center flex h-screen object-cover items-center text-white"
-    placeholder="[50, 25, 75, 5]"
     style="
       background-image: linear-gradient(
         45deg,
         rgba(100, 0, 700, 0.1) 0%,
-        /* rgba(100, 0, 0, 0.6) 10%, */ rgba(999, 0, 0, 0.4) 100%
+        /* rgba(100, 0, 0, 0.6) 10%, */ rgba(999, 0, 0, 0.3) 100%
       );
     "
   >
@@ -94,20 +95,24 @@
         alt="GreasyMac Profile Picture"
       />
       <div class="flex flex-col items-center">
-        <h1 class="lg:text-25 text-15 md:text-20 m-2 transition-all font-700">
+        <h1
+          class="lg:text-25 text-12 xs:text-15 md:text-20 m-2 transition-all font-700"
+        >
           GreasyMac
         </h1>
-        <p class="text-4 md:text-6 my-2 md:my-4 font-600">
+        <p class="text-3.5 xs:text-4 md:text-6 xs:my-2 md:my-4 font-600">
           Welcome to the greasy gang.
         </p>
-        <div class="flex flex-wrap justify-center w-md md:w-a">
+        <div
+          class="flex flex-wrap justify-center xs:(min-w-xs w-60vw) sm:w-sm md:w-a"
+        >
           <NuxtLink
             :href="button.href"
             target="_blank"
             v-for="button in buttons"
-            class="transition flex w-13 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 xs:w-15 xs:h-15 rounded-2xl bg-home-button- hover:bg-home-button-hovered border-none"
+            class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-home-button- hover:bg-home-button-hovered border-none"
           >
-            <svg class="w-10 h-10">
+            <svg class="sm:(w-10 h-10) w-8 h-8">
               <use :xlink:href="button.icon" />
             </svg>
           </NuxtLink>
