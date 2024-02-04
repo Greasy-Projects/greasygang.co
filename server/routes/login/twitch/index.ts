@@ -4,7 +4,7 @@ import { twitch } from "~/server/utils/auth";
 export default defineEventHandler(async event => {
 	const state = generateState();
 	const url = await twitch.createAuthorizationURL(state, {
-		scopes: ["channel:read:subscriptions"],
+		scopes: ["channel:read:subscriptions", "user:read:email"],
 	});
 
 	setCookie(event, "twitch_oauth_state", state, {
