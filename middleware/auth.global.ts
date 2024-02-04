@@ -1,6 +1,7 @@
 export default defineNuxtRouteMiddleware(async () => {
 	const user = useUser();
-	user.value = await ($fetch as (url: string) => Promise<any>)(
-		"/api/auth/user"
-	);
+	const { data } = await useFetch("/api/auth/user");
+	if (data.value) {
+		user.value = data.value;
+	}
 });
