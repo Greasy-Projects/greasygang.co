@@ -2,7 +2,7 @@ import { OAuth2RequestError } from "arctic";
 import { generateId } from "lucia";
 import { db } from "~/server/utils/db";
 import { lucia, twitch } from "~/server/utils/auth";
-import { userTable } from "~/server/utils/schema";
+import { user } from "~/server/utils/schema";
 import { eq } from "drizzle-orm";
 
 interface TokenResponseBody {
@@ -65,8 +65,8 @@ export default defineEventHandler(async event => {
         // check if user exists in database
 		const [existingUser] = await db
             .select()
-            .from(userTable)
-            .where(eq(userTable.discordId, discordUser.id))
+            .from(user)
+            .where(eq(user.discordId, discordUser.id))
             .limit(1);
 
         if (existingUser) {
@@ -80,7 +80,7 @@ export default defineEventHandler(async event => {
         }
 
         const userId = generateId(15);
-		await db.insert(userTable).values({
+		await db.insert(user).values({
 			id: userId,
 			username: discordUser.username,
 			discordId: discordUser.id,
