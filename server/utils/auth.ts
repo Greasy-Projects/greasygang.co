@@ -1,5 +1,5 @@
 // server/utils/auth.ts
-import { Lucia } from "lucia";
+import { Lucia, TimeSpan } from "lucia";
 import { Twitch, Discord } from "arctic";
 
 import { DrizzleMySQLAdapter } from "@lucia-auth/adapter-drizzle";
@@ -15,6 +15,7 @@ export const lucia = new Lucia(adapter, {
 			secure: !process.dev,
 		},
 	},
+	sessionExpiresIn: new TimeSpan(2, "w"),
 	getUserAttributes: attributes => {
 		return {
 			username: attributes.username,
@@ -42,11 +43,11 @@ declare module "lucia" {
 export const twitch = new Twitch(
 	process.env.TWITCH_CLIENT_ID!,
 	process.env.TWITCH_CLIENT_SECRET!,
-	"http://localhost:3000/login/twitch/callback"
+	"https://localhost:3000/login/twitch/callback"
 );
 
 export const discord = new Discord(
 	process.env.DISCORD_CLIENT_ID!,
 	process.env.DISCORD_CLIENT_SECRET!,
-	"http://localhost:3000/link/discord/callback"
+	"https://test.verycrunchy.dev/login/discord/callback"
 );

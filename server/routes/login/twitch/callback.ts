@@ -1,31 +1,27 @@
-import { OAuth2RequestError } from "arctic";
-import { generateId } from "lucia";
-import { db } from "~/server/utils/db";
+import { OAuth2RequestError, type TwitchTokens } from "arctic";
+import {
+	db,
+	id,
+	getOrCreateUser,
+	newTimestamps,
+	updateTimestamps,
+} from "~/server/utils/db";
 import { lucia, twitch } from "~/server/utils/auth";
-import { user, accountLink, twitchAccount } from "~/server/utils/schema";
+import { twitchAccount } from "~/server/utils/schema";
 import { eq } from "drizzle-orm";
 
-export interface TwitchTokens {
-	accessToken: string;
-	refreshToken: string;
-	accessTokenExpiresAt: Date;
-}
-
 export interface TwitchUserResponse {
-	data: [
-		{
-			id: string;
-			login: string;
-			display_name: string;
-			type: string;
-			broadcaster_type: string;
-			description: string;
-			profile_image_url: string;
-			offline_image_url: string;
-			view_count: number;
-			created_at: string;
-		},
-	];
+	id: string;
+	login: string;
+	email: string;
+	display_name: string;
+	type: string;
+	broadcaster_type: string;
+	description: string;
+	profile_image_url: string;
+	offline_image_url: string;
+	view_count: number;
+	created_at: string;
 }
 
 export default defineEventHandler(async event => {
@@ -43,14 +39,15 @@ export default defineEventHandler(async event => {
 		// validate authorization code
 		const tokens: TwitchTokens = await twitch.validateAuthorizationCode(code);
 
-		const {scopes}: { scopes: String[] } = await (
-			await fetch("https://id.twitch.tv/oauth2/validate", {
-				headers: {
-					Authorization: `Bearer ${tokens.accessToken}`,
-				},
-			})
-		).json();
-		// get user
+		const { scopes }: { scopes: String[] } = await (
+				await fetch("https://id.twitch.tv/oauth2/validate", {
+					headers: {
+						Authorization: `Bearer ${tokens.accessToken}`,
+					},
+				})
+			).json(),
+			scope = scopes.join(" ");
+
 		const twitchUserResponse = await fetch(
 			"https://api.twitch.tv/helix/users",
 			{
@@ -61,35 +58,61 @@ export default defineEventHandler(async event => {
 			}
 		);
 
-		const twitchUser: TwitchUserResponse = await twitchUserResponse.json();
+		const twitchUser: TwitchUserResponse = (await twitchUserResponse.json())
+			.data[0];
 
-		// // check if user exists in database
-		// const [existingUser] = await db
-		// 	.select()
-		// 	.from(user)
-		// 	.where(eq(user.twitchId, twitchUser.data[0].id))
-		// 	.limit(1);
+		const user = await getOrCreateUser(
+			"twitch",
+			twitchUser.id,
+			twitchUser.email
+		);
+		console.log(user);
+		if (user.type === "existing") {
+			const session = await lucia.createSession(user.userId, {});
+			appendResponseHeader(
+				event,
+				"Set-Cookie",
+				lucia.createSessionCookie(session.id).serialize()
+			);
+			/*
+					await db
+			.update(accountLink)
+			.set({
+				twitchId: twitchId,
+				...updateTimestamps(),
+			})
+			.where(eq(accountLink.id, user.userId));
+			*/
+			const [twitchUser] = await db
+				.select()
+				.from(twitchAccount)
+				.where(eq(twitchAccount.userId, user.userId));
+			return sendRedirect(event, "/dashboard");
+		}
 
-		// if (existingUser) {
-		// 	const session = await lucia.createSession(existingUser.id, {});
-		// 	appendResponseHeader(
-		// 		event,
-		// 		"Set-Cookie",
-		// 		lucia.createSessionCookie(session.id).serialize()
-		// 	);
-		// 	return sendRedirect(event, "/dashboard");
-		// }
-
-		const twitchId = generateId(15);
-		// await db.insert(twitchAccount).values({
-		// 	id: twitchId,
-		// 	refreshToken: tokens.refreshToken,
-		// 	scope: scopes.join(" "),
-		// 	userId
-		// 	created_at: new Date(),
-		// 	updated_at: new Date(),
-		// });
-		const session = await lucia.createSession(twitchId, {});
+		// create twitch account
+		const twitchId = id();
+		await db.insert(twitchAccount).values({
+			id: twitchId,
+			userId: user.userId,
+			email: twitchUser.email,
+			username: twitchUser.login,
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
+			accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+			scope,
+			avatar: twitchUser.profile_image_url,
+			...newTimestamps(),
+		});
+		// link twitch account
+		await db
+			.update(accountLink)
+			.set({
+				twitchId: twitchId,
+				...updateTimestamps(),
+			})
+			.where(eq(accountLink.id, user.userId));
+		const session = await lucia.createSession(user.userId, {});
 		appendResponseHeader(
 			event,
 			"Set-Cookie",
@@ -97,6 +120,7 @@ export default defineEventHandler(async event => {
 		);
 		return sendRedirect(event, "/dashboard");
 	} catch (e) {
+		console.log(e);
 		if (e instanceof OAuth2RequestError) {
 			throw createError({
 				statusCode: 400,
