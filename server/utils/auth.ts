@@ -43,7 +43,7 @@ declare module "lucia" {
 export const twitch = new Twitch(
 	process.env.TWITCH_CLIENT_ID!,
 	process.env.TWITCH_CLIENT_SECRET!,
-	"https://localhost:3000/login/twitch/callback"
+	"https://test.verycrunchy.dev/login/twitch/callback"
 );
 
 export const discord = new Discord(

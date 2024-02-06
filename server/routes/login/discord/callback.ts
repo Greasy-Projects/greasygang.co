@@ -1,37 +1,26 @@
-import { OAuth2RequestError } from "arctic";
+import { type DiscordTokens, OAuth2RequestError } from "arctic";
 import { generateId } from "lucia";
 import { db } from "~/server/utils/db";
 import { lucia, twitch } from "~/server/utils/auth";
 import { user } from "~/server/utils/schema";
 import { eq } from "drizzle-orm";
-
-interface TokenResponseBody {
-	access_token: string;
-	expires_in: number;
-	refresh_token: string;
-}
-
-export interface DiscordTokens {
-	accessToken: string;
-	refreshToken: string;
-	accessTokenExpiresAt: Date;
-}
+import { getObjectDifferences } from "~/server/utils/functions";
 
 export interface DiscordUserResponse {
-    id: string;
-    username: string;
-    discriminator: string;
-    global_name?: string;
-    avatar: string;
-    bot?: boolean;
-    system?: boolean;
-    mfa_enabled?: boolean;
-    locale?: string;
-    verified?: boolean;
-    email?: string;
-    flags?: number;
-    premium_type?: number;
-    public_flags?: number;
+	id: string;
+	username: string;
+	discriminator: string;
+	global_name: string;
+	avatar: string;
+	bot?: boolean;
+	system?: boolean;
+	mfa_enabled?: boolean;
+	locale?: string;
+	verified?: boolean;
+	email: string | null;
+	flags?: number;
+	premium_type?: number;
+	public_flags?: number;
 }
 
 export default defineEventHandler(async event => {
@@ -48,55 +37,77 @@ export default defineEventHandler(async event => {
 
 	try {
 		// validate authorization code
-        const tokens: DiscordTokens = await discord.validateAuthorizationCode(code);
+		const tokens: DiscordTokens = await discord.validateAuthorizationCode(code);
 
-        // get user
-        const discordUserResponse = await fetch(
-            "https://discord.com/api/users/@me",
-            {
-                headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                },
-            }
-        );
+		// get user
+		const discordUserResponse = await fetch(
+			"https://discord.com/api/users/@me",
+			{
+				headers: {
+					Authorization: `Bearer ${tokens.accessToken}`,
+				},
+			}
+		);
 
-        const discordUser: DiscordUserResponse = await discordUserResponse.json();
-            
-        // check if user exists in database
-		const [existingUser] = await db
-            .select()
-            .from(user)
-            .where(eq(user.discordId, discordUser.id))
-            .limit(1);
+		const discordUser: DiscordUserResponse = await discordUserResponse.json();
 
-        if (existingUser) {
-			const session = await lucia.createSession(existingUser.id, {});
-			appendResponseHeader(
-				event,
-				"Set-Cookie",
-				lucia.createSessionCookie(session.id).serialize()
-			);
-			return sendRedirect(event, "/dashboard");
-        }
+		// console.log(discordUser);
+		// if email doesn't exist for some reason, we're gonna have a huge problem.
+		if (!discordUser.verified) return sendRedirect(event, "/"); //get fucked
+		const user = await getOrCreateUser(
+			"discord",
+			discordUser.id,
+			discordUser.email
+		);
 
-        const userId = generateId(15);
-		await db.insert(user).values({
-			id: userId,
-			username: discordUser.username,
-			discordId: discordUser.id,
-			display_name: discordUser.global_name || discordUser.username,
-			avatar: discordUser.avatar,
-			created_at: new Date(),
-			updated_at: new Date(),
-		});
-		const session = await lucia.createSession(userId, {});
+		// if (user.type === "existing") {
+		// 	const session = await lucia.createSession(user.userId, {});
+		// 	appendResponseHeader(
+		// 		event,
+		// 		"Set-Cookie",
+		// 		lucia.createSessionCookie(session.id).serialize()
+		// 	);
+
+		// 	const [discordUser] = await db
+		// 		.select()
+		// 		.from(discordAccount)
+		// 		.where(eq(discordAccount.userId, user.userId));
+
+		// 	// console.log(getObjectDifferences(discordUser, twitch));
+		// 	return sendRedirect(event, "/dashboard");
+		// }
+
+		// create discord account
+
+		if (user.type === "new") {
+			const dbId = id();
+			await db.insert(discordAccount).values({
+				id: dbId,
+				username: discordUser.username,
+				userId: user.userId,
+				discordId: user.userId,
+				email: discordUser.email,
+				global_name: discordUser.global_name,
+				avatar: discordUser.avatar,
+				...newTimestamps(),
+			});
+			await db
+				.update(accountLink)
+				.set({
+					discordId: dbId,
+					...updateTimestamps(),
+				})
+				.where(eq(accountLink.userId, user.userId));
+		}
+		const session = await lucia.createSession(user.userId, {});
 		appendResponseHeader(
 			event,
 			"Set-Cookie",
 			lucia.createSessionCookie(session.id).serialize()
 		);
 		return sendRedirect(event, "/dashboard");
-    } catch (e) {
+	} catch (e) {
+		console.log(e)
 		if (e instanceof OAuth2RequestError) {
 			throw createError({
 				statusCode: 400,

@@ -13,7 +13,8 @@ export const accountLink = mysqlTable("account_link", {
 		length: 100,
 	})
 		.notNull()
-		.references(() => user.id),
+		.references(() => user.id)
+		.unique(),
 	twitchId: varchar("twitchId", {
 		length: 100,
 	}).references(() => twitchAccount.id),
@@ -46,7 +47,12 @@ export const twitchAccount = mysqlTable("twitch_account", {
 		length: 100,
 	})
 		.notNull()
-		.references(() => user.id),
+		.references(() => user.id).unique(),
+	twitchId: varchar("twitchId", {
+		length: 50,
+	})
+		.notNull()
+		.unique(),
 	scope: varchar("scope", {
 		length: 255,
 	}).notNull(),
@@ -57,7 +63,7 @@ export const twitchAccount = mysqlTable("twitch_account", {
 	refreshToken: varchar("refresh_token", {
 		length: 100,
 	}),
-	avatar: varchar("avatar", { length: 100 }).notNull(),
+	avatar: varchar("avatar", { length: 255 }),
 	...createdUpdated,
 });
 
@@ -70,7 +76,9 @@ export const discordAccount = mysqlTable("discord_account", {
 	}).notNull(),
 	discordId: varchar("discordId", {
 		length: 22,
-	}).notNull(),
+	})
+		.notNull()
+		.unique(),
 	global_name: varchar("global_name", {
 		length: 32,
 	}).notNull(),
@@ -81,8 +89,8 @@ export const discordAccount = mysqlTable("discord_account", {
 		length: 100,
 	})
 		.notNull()
-		.references(() => user.id),
-	avatar: varchar("avatar", { length: 100 }).notNull(),
+		.references(() => user.id).unique(),
+	avatar: varchar("avatar", { length: 100 }),
 	...createdUpdated,
 });
 

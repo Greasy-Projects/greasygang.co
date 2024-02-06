@@ -45,31 +45,17 @@ export function updateTimestamps(): {
 export async function getOrCreateUser(
 	platform: "discord" | "twitch",
 	platformUserId: string,
-	platformUserEmail: string
-): Promise<{ type: "new" | "existing"; userId: string }> {
-	let newAccountType!: {
-			twitchId?: string;
-			discordId?: string;
-		},
-		linkType!: typeof accountLink.twitchId | typeof accountLink.discordId,
-		otherTable!: typeof discordAccount | typeof twitchAccount;
+	platformUserEmail: string | null
+): Promise<{ type: "new" | "existing" | "nolink"; userId: string }> {
+	let linkType!: typeof accountLink.twitchId | typeof accountLink.discordId,
+		otherPlatform!: typeof discordAccount | typeof twitchAccount;
 	if (platform === "twitch") {
-		newAccountType = { twitchId: platformUserId };
 		linkType = accountLink.twitchId;
-		otherTable = discordAccount;
+		otherPlatform = discordAccount;
 	} else if (platform === "discord") {
-		newAccountType = { discordId: platformUserId };
 		linkType = accountLink.discordId;
-		otherTable = twitchAccount;
+		otherPlatform = twitchAccount;
 	}
-
-	const [existingUserWithEmail] = await db
-		.select()
-		.from(otherTable)
-		.where(eq(otherTable.email, platformUserEmail));
-	
-	//TODO: link account
-	console.log("existingUserWithEmail", existingUserWithEmail);
 
 	// check if OAuth account is already linked
 	const [existingLink] = await db
@@ -78,16 +64,27 @@ export async function getOrCreateUser(
 		.where(eq(linkType, platformUserId))
 		.limit(1);
 	if (existingLink) return { type: "existing", userId: existingLink.userId };
+
+	if (platformUserEmail !== null) {
+		const [existingUserWithEmail] = await db
+			.select()
+			.from(otherPlatform)
+			.where(eq(otherPlatform.email, platformUserEmail));
+
+		await db.update(accountLink).set({
+			...newTimestamps(),
+		});
+		
+		if (existingUserWithEmail)
+			return { type: "new", userId: existingUserWithEmail.userId };
+	}
 	const newUserId = id();
 	await db.insert(user).values({ id: newUserId, ...newTimestamps() });
-
 	await db.insert(accountLink).values({
 		id: id(),
 		userId: newUserId,
 		...newTimestamps(),
 	});
-
-	//TODO
 	return { type: "new", userId: newUserId };
 }
 

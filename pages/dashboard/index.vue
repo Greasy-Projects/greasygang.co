@@ -13,6 +13,6 @@
 			<img class="w-8 h-8 rounded-full" :src="user.avatar" :alt="user.username" />
 			{{ user.username }}
 		</span></h2>
-		<a href="/link/discord">Link Discord</a>
+		<a href="/login/discord">Link Discord</a>
 	</div>
 </template>

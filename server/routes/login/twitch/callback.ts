@@ -9,6 +9,7 @@ import {
 import { lucia, twitch } from "~/server/utils/auth";
 import { twitchAccount } from "~/server/utils/schema";
 import { eq } from "drizzle-orm";
+import { getObjectDifferences } from "~/server/utils/functions";
 
 export interface TwitchUserResponse {
 	id: string;
@@ -67,51 +68,40 @@ export default defineEventHandler(async event => {
 			twitchUser.email
 		);
 		console.log(user);
+		//TODO: check for updates in user
 		if (user.type === "existing") {
-			const session = await lucia.createSession(user.userId, {});
-			appendResponseHeader(
-				event,
-				"Set-Cookie",
-				lucia.createSessionCookie(session.id).serialize()
-			);
-			/*
-					await db
-			.update(accountLink)
-			.set({
-				twitchId: twitchId,
-				...updateTimestamps(),
-			})
-			.where(eq(accountLink.id, user.userId));
-			*/
-			const [twitchUser] = await db
+			const [existingTwitchUser] = await db
 				.select()
 				.from(twitchAccount)
 				.where(eq(twitchAccount.userId, user.userId));
-			return sendRedirect(event, "/dashboard");
+			// console.log(getObjectDifferences(twitchUser, existingTwitchUser));
 		}
 
-		// create twitch account
-		const twitchId = id();
-		await db.insert(twitchAccount).values({
-			id: twitchId,
-			userId: user.userId,
-			email: twitchUser.email,
-			username: twitchUser.login,
-			accessToken: tokens.accessToken,
-			refreshToken: tokens.refreshToken,
-			accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-			scope,
-			avatar: twitchUser.profile_image_url,
-			...newTimestamps(),
-		});
-		// link twitch account
-		await db
-			.update(accountLink)
-			.set({
-				twitchId: twitchId,
-				...updateTimestamps(),
-			})
-			.where(eq(accountLink.id, user.userId));
+		if (user.type === "new") {
+			const dbId = id();
+			//create twitch account
+			await db.insert(twitchAccount).values({
+				id: dbId,
+				userId: user.userId,
+				twitchId: twitchUser.id,
+				email: twitchUser.email,
+				username: twitchUser.login,
+				accessToken: tokens.accessToken,
+				refreshToken: tokens.refreshToken,
+				accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+				scope,
+				avatar: twitchUser.profile_image_url,
+				...newTimestamps(),
+			});
+			// link twitch account
+			await db
+				.update(accountLink)
+				.set({
+					twitchId: dbId,
+					...updateTimestamps(),
+				})
+				.where(eq(accountLink.userId, user.userId));
+		}
 		const session = await lucia.createSession(user.userId, {});
 		appendResponseHeader(
 			event,
