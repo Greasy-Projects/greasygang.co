@@ -1,8 +1,6 @@
 import { type DiscordTokens, OAuth2RequestError } from "arctic";
-import { generateId } from "lucia";
 import { db } from "~/server/utils/db";
-import { lucia, twitch } from "~/server/utils/auth";
-import { user } from "~/server/utils/schema";
+import { lucia } from "~/server/utils/auth";
 import { eq } from "drizzle-orm";
 import { getObjectDifferences } from "~/server/utils/functions";
 
@@ -80,21 +78,19 @@ export default defineEventHandler(async event => {
 		// create discord account
 
 		if (user.type === "new") {
-			const dbId = id();
 			await db.insert(discordAccount).values({
-				id: dbId,
+				id: discordUser.id,
 				username: discordUser.username,
 				userId: user.userId,
-				discordId: user.userId,
 				email: discordUser.email,
 				global_name: discordUser.global_name,
-				avatar: discordUser.avatar,
+				avatar: `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}`,
 				...newTimestamps(),
 			});
 			await db
 				.update(accountLink)
 				.set({
-					discordId: dbId,
+					discordId: discordUser.id,
 					...updateTimestamps(),
 				})
 				.where(eq(accountLink.userId, user.userId));
@@ -107,7 +103,7 @@ export default defineEventHandler(async event => {
 		);
 		return sendRedirect(event, "/dashboard");
 	} catch (e) {
-		console.log(e)
+		console.log(e);
 		if (e instanceof OAuth2RequestError) {
 			throw createError({
 				statusCode: 400,

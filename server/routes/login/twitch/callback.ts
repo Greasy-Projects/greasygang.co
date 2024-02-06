@@ -69,35 +69,38 @@ export default defineEventHandler(async event => {
 		);
 		console.log(user);
 		//TODO: check for updates in user
+		const values = {
+			id: twitchUser.id,
+			userId: user.userId,
+			email: twitchUser.email,
+			username: twitchUser.login,
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
+			accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+			scope,
+			avatar: twitchUser.profile_image_url,
+		};
+		//TODO: tomorrow, now sleep 
 		if (user.type === "existing") {
 			const [existingTwitchUser] = await db
 				.select()
 				.from(twitchAccount)
 				.where(eq(twitchAccount.userId, user.userId));
-			// console.log(getObjectDifferences(twitchUser, existingTwitchUser));
+			console.log(getObjectDifferences(twitchUser, existingTwitchUser));
 		}
 
+		console.log(user.type);
 		if (user.type === "new") {
-			const dbId = id();
 			//create twitch account
 			await db.insert(twitchAccount).values({
-				id: dbId,
-				userId: user.userId,
-				twitchId: twitchUser.id,
-				email: twitchUser.email,
-				username: twitchUser.login,
-				accessToken: tokens.accessToken,
-				refreshToken: tokens.refreshToken,
-				accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-				scope,
-				avatar: twitchUser.profile_image_url,
+				...values,
 				...newTimestamps(),
 			});
 			// link twitch account
 			await db
 				.update(accountLink)
 				.set({
-					twitchId: dbId,
+					twitchId: twitchUser.id,
 					...updateTimestamps(),
 				})
 				.where(eq(accountLink.userId, user.userId));

@@ -4,7 +4,7 @@ import { discord } from "~/server/utils/auth";
 export default defineEventHandler(async event => {
 	const state = generateState();
 	const url = await discord.createAuthorizationURL(state, {
-		scopes: ["identify", "email"],
+		scopes: ["identify", "email", "connections"],
 	});
 
 	setCookie(event, "discord_oauth_state", state, {

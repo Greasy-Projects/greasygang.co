@@ -47,12 +47,9 @@ export const twitchAccount = mysqlTable("twitch_account", {
 		length: 100,
 	})
 		.notNull()
-		.references(() => user.id).unique(),
-	twitchId: varchar("twitchId", {
-		length: 50,
-	})
-		.notNull()
+		.references(() => user.id)
 		.unique(),
+
 	scope: varchar("scope", {
 		length: 255,
 	}).notNull(),
@@ -74,11 +71,6 @@ export const discordAccount = mysqlTable("discord_account", {
 	username: varchar("username", {
 		length: 32,
 	}).notNull(),
-	discordId: varchar("discordId", {
-		length: 22,
-	})
-		.notNull()
-		.unique(),
 	global_name: varchar("global_name", {
 		length: 32,
 	}).notNull(),
@@ -89,7 +81,8 @@ export const discordAccount = mysqlTable("discord_account", {
 		length: 100,
 	})
 		.notNull()
-		.references(() => user.id).unique(),
+		.references(() => user.id)
+		.unique(),
 	avatar: varchar("avatar", { length: 100 }),
 	...createdUpdated,
 });
