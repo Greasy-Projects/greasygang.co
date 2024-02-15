@@ -8,10 +8,6 @@
 		"generate": "nuxt generate",
 		"preview": "nuxt preview",
 		"postinstall": "nuxt prepare",
-		"db:generate": "drizzle-kit generate:mysql --out ./drizzle/migrations --breakpoints --schema server/utils/schema.ts",
-		"db:studio": "drizzle-kit studio --port 3333",
-		"db:migrate": "tsx server/utils/migrate",
-		"db:push": "drizzle-kit push:mysql",
 		"lint": "eslint . --fix && prettier --cache --write .",
 		"lint:ci": "eslint . &&  prettier --cache --check ."
 	},

@@ -64,19 +64,16 @@ const buttons = [
 		</svg>
 		<div class="fade-out bg-#370f0f absolute -z-1 w-full h-full h-20"></div>
 		<NuxtImg
-			src="/bg.png"
-			class="h-screen transition-all object-cover object-bottom absolute w-full -z-10"
-			:modifiers="{ blur: '5' }"
-			height="500"
-			width="500"
+			src="/bg-speck.png"
+			class="h-screen object-cover absolute w-full -z-10"
 		></NuxtImg>
 		<div
-			class="font-IBM justify-center flex h-screen object-cover items-center text-white"
+			class="font-IBM justify-center flex  h-screen object-cover items-center text-white"
 			style="
 				background-image: linear-gradient(
 					45deg,
-					rgba(100, 0, 700, 0.1) 0%,
-					/* rgba(100, 0, 0, 0.6) 10%, */ rgba(999, 0, 0, 0.3) 100%
+					rgba(999, 0, 0, 0.1) 0%,
+					/* rgba(100, 0, 0, 0.6) 10%, */ rgba(999, 0, 0, 0.2) 100%
 				);
 			"
 		>
@@ -116,6 +113,9 @@ const buttons = [
 						</NuxtLink>
 					</div>
 				</div>
+			</div>
+			<div>
+				te
 			</div>
 		</div>
 	</main>

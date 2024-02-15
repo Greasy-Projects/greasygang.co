@@ -9,7 +9,6 @@ import {
 	twitchAccount,
 } from "~/server/utils/schema";
 import { generateId } from "lucia";
-import { MySqlColumn } from "drizzle-orm/mysql-core";
 
 export const connection = mysql.createConnection({
 	host: process.env.DB_HOST || "localhost",

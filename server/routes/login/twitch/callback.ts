@@ -1,7 +1,6 @@
 import { OAuth2RequestError, type TwitchTokens } from "arctic";
 import {
 	db,
-	id,
 	getOrCreateUser,
 	newTimestamps,
 	updateTimestamps,
