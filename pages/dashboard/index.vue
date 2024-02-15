@@ -1,8 +1,4 @@
 <script lang="ts" setup>
-definePageMeta({
-	middleware: "protected",
-});
-
 const user = useAuthenticatedUser();
 </script>
 
