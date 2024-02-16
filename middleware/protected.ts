@@ -1,23 +1,29 @@
 export default defineNuxtRouteMiddleware(async m => {
-	const token = useCookie("auth_session", {
-		watch: true,
-	});
+	const token = useCookie("auth_session").value;
 	//TODO: validate token and handle accordingly
 	const config = useRuntimeConfig().public;
-	if (!token.value) {
-		const url = new URL(config.apiBase);
-		url.pathname = "/login/twitch";
-		url.searchParams.set("token_callback", config.callbackUrl);
-		url.searchParams.set("redirect", m.fullPath);
-		//TODO: allow dynamic scopes depending on the pages needs
-		url.searchParams.set(
-			"scopes",
-			"bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email"
-		);
-		return navigateTo(url.toString(), {
-			external: true,
+	const api = new URL(config.apiBase);
+	api.pathname = "/token/validate";
+
+	if (token) {
+		const validate = await useFetch(api.toString(), {
+			headers: {
+				authorization: token,
+			},
 		});
+		if (validate.status.value === "success")
+			return useGqlHeaders({ authorization: `Bearer ${token}` });
 	}
 
-	useGqlHeaders({ authorization: `Bearer ${token.value}` });
+	api.pathname = "/login/twitch";
+	api.searchParams.set("token_callback", config.callbackUrl);
+	api.searchParams.set("redirect", m.fullPath);
+	//TODO: allow dynamic scopes depending on the pages needs
+	api.searchParams.set(
+		"scopes",
+		"bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email"
+	);
+	return navigateTo(api.toString(), {
+		external: true,
+	});
 });
