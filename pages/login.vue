@@ -1,16 +1,18 @@
 <script setup lang="ts">
 const buttons = [
-	{ icon: "fa-twitch", href: "http://localhost:4000/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email" },
-	{ icon: "fa-discord", href: "http://localhost:4000/login/discord?scopes=identify email connections" },
+	{
+		icon: "fa-twitch",
+		href: "http://localhost:4000/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email",
+	},
+	{
+		icon: "fa-discord",
+		href: "http://localhost:4000/login/discord?scopes=identify email connections",
+	},
 ];
-
- </script>
+</script>
 <template>
 	<div class="font-IBM">
 		<div class="max-w-xl mx-auto p-2">
-			<a href="/login/discord" class="text-blue-500 rounded-md">Discord</a
-			><br />
-			<a href="/login/twitch" class="text-purple-500 rounded-md">Twitch</a>
 			<NuxtLink
 				v-for="button in buttons"
 				:key="button.href"

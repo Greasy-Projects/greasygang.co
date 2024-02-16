@@ -3,7 +3,7 @@ export default defineEventHandler(async event => {
 	const token = query.token?.toString() ?? null;
 	const redirect = query.redirect?.toString() ?? "/";
 
-	if (!token) {
+	if (token) {
 		setCookie(event, "auth_session", `${token}`);
 	}
 
