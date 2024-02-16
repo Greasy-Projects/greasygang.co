@@ -83,7 +83,6 @@ const buttons = [
 			<div class="m-10 flex lt-lg:flex-col fade-in pop-in items-center">
 				<div class="flex fade-in">
 					<NuxtImg
-						:placeholder="[140, 163, 10, 2]"
 						width="200"
 						src="/pfp.png"
 						preload
