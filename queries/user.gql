@@ -1,8 +1,9 @@
 query GetMe {
-	me {
-		userId
-		platform
-		displayName
-		email
-	}
+  me {
+    userId
+    platform
+    displayName
+    email
+    avatar
+  }
 }

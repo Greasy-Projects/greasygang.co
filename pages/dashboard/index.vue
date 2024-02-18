@@ -9,5 +9,6 @@ const user = await GqlGetMe();
 	<div class="font-IBM p-2">
 		<h1 class="text-2xl">Dashboard</h1>
 		<h2 class="text-xl">Hello, {{ user }}</h2>
+		<NuxtLink href="/me">Go to the FUCKING settings</NuxtLink>
 	</div>
 </template>
