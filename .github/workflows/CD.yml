@@ -13,11 +13,20 @@ jobs:
         echo API_BASE="https://api.greasygang.co" >> .env
         echo GQL_HOST="https://api.greasygang.co/graphql" >> .env
         echo CALLBACK_URL="https://greasygang.co/auth/callback" >> .env
+    - name: Upload .env
+      uses: actions/upload-artifact@v4
+      with:
+        name: env-file
+        path: .env
 
   build:
     runs-on: self-hosted
     needs: generate-env
     steps:
+    - name: Download .env
+      uses: actions/download-artifact@v4
+      with:
+        name: env-file
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
