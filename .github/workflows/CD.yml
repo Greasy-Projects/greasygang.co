@@ -1,0 +1,28 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  generate-env:
+    runs-on: self-hosted
+    steps:
+    - name: Create .env file
+      run: |
+        echo API_BASE="https://api.greasygang.co" >> .env
+        echo GQL_HOST="https://api.greasygang.co/graphql" >> .env
+        echo CALLBACK_URL="https://greasygang.co/auth/callback" >> .env
+
+  build:
+
+    runs-on: self-hosted
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - run: pnpm install
+    - run: pnpm build
+    - run: pm2 restart production.config.cjs
