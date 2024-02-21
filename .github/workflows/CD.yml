@@ -15,9 +15,8 @@ jobs:
         echo CALLBACK_URL="https://greasygang.co/auth/callback" >> .env
 
   build:
-
     runs-on: self-hosted
-
+    needs: generate-env
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
