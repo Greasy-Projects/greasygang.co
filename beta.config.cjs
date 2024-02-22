@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "GreasyGang Prod Website",
-      port: "5000",
+      name: "GreasyGang Beta Website",
+      port: "5001",
       script: "./.output/server/index.mjs",
       autorestart: true,
       env: {
