@@ -9,10 +9,33 @@ export default defineNuxtConfig({
 		"@fortawesome/fontawesome-svg-core/styles.css",
 	],
 	devtools: { enabled: true },
-	modules: ["@unocss/nuxt", "@nuxtjs/google-fonts", "@nuxt/image"],
+	modules: [
+		"@unocss/nuxt",
+		"@nuxtjs/google-fonts",
+		"@nuxt/image",
+		"nuxt-graphql-client",
+	],
 	googleFonts: {
 		families: { "IBM Plex Sans": true, "Bebas Neue": true },
 		preload: true,
+	},
+	runtimeConfig: {
+		public: {
+			apiBase: process.env.API_BASE,
+			callbackUrl: process.env.CALLBACK_URL,
+		},
+	},
+	"graphql-client": {
+		tokenStorage: {
+			name: "auth_session",
+			mode: "cookie",
+			cookieOptions: {
+				path: "/",
+				secure: false, // defaults to `process.env.NODE_ENV === 'production'`
+				httpOnly: false, // Only accessible via HTTP(S)
+				maxAge: 60 * 60 * 24 * 5, // 5 days
+			},
+		},
 	},
 	image: {
 		quality: 80,
