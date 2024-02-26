@@ -62,25 +62,19 @@ const buttons = [
 				/>
 			</symbol>
 		</svg>
-		<div class="fade-out bg-#370f0f absolute -z-1 w-full h-full h-20"></div>
-		<NuxtImg
-			src="/bg.png"
-			class="h-screen transition-all object-cover object-bottom absolute w-full -z-10"
-			:modifiers="{ blur: '5' }"
-			height="500"
-			width="500"
-		></NuxtImg>
+		<div class="fade-out_ bg-background absolute -z-1 w-full h-full h-20"></div>
+		<!-- <div class="grid-cols-6 grid gap-4">
+			<div v-for="i in 10" :key="i" class="bg-secondary h-20 w-30">
+				sum {{ i }}
+			</div>
+		</div> -->
+
 		<div
 			class="font-IBM justify-center flex h-screen object-cover items-center text-white"
-			style="
-				background-image: linear-gradient(
-					45deg,
-					rgba(100, 0, 700, 0.1) 0%,
-					/* rgba(100, 0, 0, 0.6) 10%, */ rgba(999, 0, 0, 0.3) 100%
-				);
-			"
 		>
-			<div class="m-10 flex lt-lg:flex-col fade-in pop-in items-center">
+			<div
+				class="m-10 flex lt-lg:flex-col text-text fade-in pop-in items-center"
+			>
 				<div class="flex fade-in">
 					<NuxtImg
 						width="200"
@@ -97,7 +91,7 @@ const buttons = [
 						GreasyMac
 					</h1>
 					<p class="text-3.5 xs:text-4 md:text-6 xs:my-2 md:my-4 font-600">
-						Welcome to the greasy gang.
+						Welcome to the Greasy Gang.
 					</p>
 					<div
 						class="flex flex-wrap justify-center xs:(min-w-xs w-60vw) sm:w-sm md:w-a"
@@ -107,7 +101,7 @@ const buttons = [
 							:key="button.href"
 							:href="button.href"
 							target="_blank"
-							class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-home-button- hover:bg-home-button-hovered border-none"
+							class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-primary hover:bg-secondary border-none"
 						>
 							<svg class="sm:(w-10 h-10) w-8 h-8">
 								<use :xlink:href="button.icon" />

@@ -3,7 +3,7 @@ export default defineNuxtRouteMiddleware(async m => {
 	//TODO: validate token and handle accordingly
 	const config = useRuntimeConfig().public;
 	const api = new URL(config.apiBase);
-	api.pathname = "/token/validate";
+	api.pathname = "/validate/token";
 
 	if (token) {
 		const validate = await useFetch(api.toString(), {

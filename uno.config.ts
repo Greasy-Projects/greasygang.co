@@ -35,6 +35,12 @@ export default defineConfig({
 			"2xl": "1536px",
 		},
 		colors: {
+			text: "#ad6800",
+			background: "#fff4db",
+			primary: "#c18f44",
+			secondary: "#eeb45d",
+			accent: "#b58030",
+
 			home: {
 				button: {
 					"": "#ff5454",
