@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 	css: [
+		"@/public/reset.css",
 		"@unocss/reset/normalize.css",
 		"@unocss/reset/sanitize/sanitize.css",
 		"@unocss/reset/sanitize/assets.css",
@@ -15,7 +16,7 @@ export default defineNuxtConfig({
 		"nuxt-graphql-client",
 	],
 	googleFonts: {
-		families: { "IBM Plex Sans": true },
+		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
 		preload: true,
 	},
 	runtimeConfig: {
