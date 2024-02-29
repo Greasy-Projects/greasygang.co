@@ -4,60 +4,62 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 const buttons = [
 	{
 		icon: { name: "discord", type: "fab" },
-		name: "discord",
+		text: "discord",
 		href: "https://discord.gg/VmRjkGV",
 	},
 	{
 		icon: { name: "twitch", type: "fab" },
-		name: "twitch",
+		text: "twitch",
 		href: "https://twitch.tv/greasymac",
 	},
 	{
-		icon: { name: "tiktok", type: "fab" },
-		name: "tiktok",
-		href: "https://tiktok.com/@greasymac",
-	},
-	{
 		icon: { name: "youtube", type: "fab" },
-		name: "youtube",
+		text: "youtube",
 		href: "https://www.youtube.com/@GreasyMacTV",
 	},
 	{
+		icon: { name: "tiktok", type: "fab" },
+		text: "tiktok",
+		href: "https://tiktok.com/@greasymac",
+	},
+	{
 		icon: { name: "twitter", type: "fab" },
-		name: "twitter",
+		text: "twitter",
 		href: "https://twitter.com/GreasyMac_",
 	},
 	{
 		icon: { name: "dollar-sign", type: "fas" },
-		name: "streamelements",
+		text: "donate",
 		href: "https://streamelements.com/greasymac/tip",
 	},
 	{
 		icon: { name: "spotify", type: "fab" },
-		name: "spotify",
+		text: "playlist",
 		href: "https://open.spotify.com/playlist/21phkh5dZrZtO4E9Bf9qUy",
 	},
 ];
-const cards: { label: string; image: URL }[] = [];
 </script>
 <template>
-	<div class="font-poppins z-20">
+	<div class="font-poppins">
 		<!-- TODO: move to layout -->
 		<header
-			class="grid grid-cols-3 font-bebas px-6 py-4 text-lg transition-colors"
+			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
 			<NuxtImg src="/gggg.png" class="w-11 h-11"></NuxtImg>
-			<div class="flex m-auto gap-x-3">
+			<div class="flex gap-x-3">
 				<NuxtLink
 					href="/about"
 					class="text-white hover:text-gray-100 text-xl underline underline-offset-6"
 					>Home</NuxtLink
 				>
-				<NuxtLink href="/about" class="text-white text-xl hover:text-gray-100"
+				<NuxtLink
+					href="https://greasymac.fandom.com/wiki/GreasyMac_Wiki"
+					external
+					class="text-white text-xl hover:text-gray-100"
 					>About</NuxtLink
 				>
 			</div>
-			<div class="flex my-auto justify-end">
+			<div class="flex my-auto">
 				<NuxtLink
 					href="/about"
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
@@ -66,21 +68,25 @@ const cards: { label: string; image: URL }[] = [];
 			</div>
 		</header>
 		<main
-			class="font-barlow grid grid-rows-1 gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5 min-h-screen text-white"
+			class="font-barlow flex items-center h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5  text-white"
 		>
 			<div
-				class="grid grid-cols-subgrid grid-cols-1 md:grid-cols-2 justify-center gap-5 h-150"
+				class="md:grid grid-cols-subgrid grid-cols-1 md:grid-cols-2 justify-center gap-5 h-min"
 			>
 				<NuxtImg
 					src="/mac/babe.png"
-					class="w-full h-full object-cover rounded-xl mx-a"
+					class="h-full w-full object-cover rounded-xl mx-a"
 				>
 				</NuxtImg>
-				<div class="grid grid-rows-1 gap-2">
+				<div class="grid grid-rows-1 gap-2 select-none">
 					<div>
-						<h1 class="font-bebas text-10em text-center">GreasyMac</h1>
+						<h1
+							class="font-bebas text-20vw md:text-12vw xl:text-10em text-center"
+						>
+							GreasyMac
+						</h1>
 						<div
-							class="gap4 p4 bg-button- color-primary rounded-xl flex flex-col"
+							class="gap-4 p-6 bg-secondary color-primary rounded-xl flex flex-col"
 						>
 							<NuxtLink
 								v-for="button in buttons"
@@ -90,7 +96,7 @@ const cards: { label: string; image: URL }[] = [];
 								class="btn-before"
 							>
 								<div
-									class="transition transition-colors flex bg-button-hovered shadow-2 btn px-6 py-1 h-15 gap-x-3 justify-center items-center"
+									class="transition transition-colors flex bg-button shadow-2 btn px-6 py-1 h-15 gap-x-3 justify-center items-center"
 								>
 									<!-- class="transition transition-colors flex bg-button-hovered border-(4 solid primary) rounded-bl-sm border-l-(10 solid primary) border-b-(10 solid primary)  px-6 py-1 h-15 gap-x-3 justify-center items-center" -->
 									<FontAwesomeIcon
@@ -98,7 +104,7 @@ const cards: { label: string; image: URL }[] = [];
 										class="size-6"
 									/>
 									<p class="font-600 text-lg tracking-widest uppercase h-min">
-										{{ button.name }}
+										{{ button.text }}
 									</p>
 								</div>
 							</NuxtLink>
@@ -211,6 +217,21 @@ const cards: { label: string; image: URL }[] = [];
 	text-transform: uppercase;
 	z-index: 2;
 	text-decoration: none;
+}
+a:active.btn-before {
+	top: 6px;
+	left: -6px;
+	box-shadow: none;
+
+	&:before {
+		bottom: 1px;
+		right: 1px;
+	}
+
+	&:after {
+		top: 1px;
+		left: 1px;
+	}
 }
 </style>
 <!-- .btn {

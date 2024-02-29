@@ -38,11 +38,8 @@ export default defineConfig({
 		},
 		colors: {
 			primary: "#e8a946",
-
-			button: {
-				"": "#ff4040",
-				hovered: "#e03a3a",
-			},
+			secondary: "#ff4040",
+			button: "#e03a3a",
 		},
 	},
 	transformers: [transformerDirectives(), transformerVariantGroup()],
