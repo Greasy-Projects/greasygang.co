@@ -18,7 +18,8 @@ export default defineConfig({
 		presetWebFonts({
 			fonts: {
 				IBM: "IBM Plex Sans",
-				BEBAS: "Bebas Neue",
+				bebas: "Bebas Neue",
+				poppins: "poppins",
 			},
 		}),
 	],
@@ -36,11 +37,11 @@ export default defineConfig({
 			"2xl": "1536px",
 		},
 		colors: {
-			home: {
-				button: {
-					"": "#ff5454",
-					hovered: "#bd3535",
-				},
+			primary: "#e8a946",
+
+			button: {
+				"": "#ff4040",
+				hovered: "#e03a3a",
 			},
 		},
 	},

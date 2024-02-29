@@ -16,7 +16,7 @@ export default defineNuxtConfig({
 		"nuxt-graphql-client",
 	],
 	googleFonts: {
-		families: { "IBM Plex Sans": true, "Bebas Neue": true },
+		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
 		preload: true,
 	},
 	runtimeConfig: {
