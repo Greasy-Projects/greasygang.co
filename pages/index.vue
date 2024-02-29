@@ -41,32 +41,6 @@ const buttons = [
 </script>
 <template>
 	<div class="font-poppins">
-		<!-- TODO: move to layout -->
-		<header
-			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
-		>
-			<NuxtImg src="/gggg.png" class="w-11 h-11"></NuxtImg>
-			<div class="flex gap-x-3">
-				<NuxtLink
-					href="/about"
-					class="text-white hover:text-gray-100 text-xl underline underline-offset-6"
-					>Home</NuxtLink
-				>
-				<NuxtLink
-					href="https://greasymac.fandom.com/wiki/GreasyMac_Wiki"
-					external
-					class="text-white text-xl hover:text-gray-100"
-					>About</NuxtLink
-				>
-			</div>
-			<div class="flex my-auto">
-				<NuxtLink
-					href="/about"
-					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
-					>Login</NuxtLink
-				>
-			</div>
-		</header>
 		<main
 			class="font-barlow flex items-center h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5  text-white"
 		>
