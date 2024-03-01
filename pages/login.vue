@@ -12,6 +12,7 @@ const buttons = [
 		href: config.apiBase + "/login/discord?scopes=identify email connections",
 	},
 ];
+
 </script>
 <template>
 	<div class="font-IBM">

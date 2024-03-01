@@ -29,12 +29,9 @@ export default defineNuxtConfig({
 		tokenStorage: {
 			name: "auth_session",
 			mode: "cookie",
-			cookieOptions: {
-				path: "/",
-				secure: false, // defaults to `process.env.NODE_ENV === 'production'`
-				httpOnly: false, // Only accessible via HTTP(S)
-				maxAge: 60 * 60 * 24 * 5, // 5 days
-			},
+		},
+		codegen: {
+			disableOnBuild: true,
 		},
 	},
 	image: {

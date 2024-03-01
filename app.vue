@@ -9,7 +9,17 @@ useSeoMeta({
 	ogImage: "/favicon.webp",
 });
 const config = useRuntimeConfig().public;
-const user = await GqlGetMe();
+const user = ref();
+function logout() {
+	const cookie = useCookie("auth_session");
+	cookie.value = null;
+	user.value = null;
+}
+try {
+	user.value = await GqlGetMe();
+} catch {
+	/* empty */
+}
 </script>
 <template>
 	<div class="bg-primary">
@@ -40,7 +50,12 @@ const user = await GqlGetMe();
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
 				>
-				<NuxtImg v-if="user.me.avatar" :src="user.me.avatar" class="size-11"></NuxtImg>
+				<NuxtImg
+					v-if="user"
+					:src="user.me.avatar"
+					class="size-11"
+					@click="logout"
+				></NuxtImg>
 			</div>
 		</header>
 		<NuxtPage />
