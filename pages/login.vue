@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const router = useRouter();
-router.replace("/")
+router.replace("/");
 const config = useRuntimeConfig().public;
 const buttons = [
 	{

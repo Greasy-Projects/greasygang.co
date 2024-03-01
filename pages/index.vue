@@ -42,7 +42,7 @@ const buttons = [
 <template>
 	<div class="font-poppins">
 		<main
-			class="font-barlow flex items-center h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5  text-white"
+			class="font-barlow flex items-center h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5 text-white"
 		>
 			<div
 				class="md:grid grid-cols-subgrid grid-cols-1 md:grid-cols-2 justify-center gap-5 h-min"
