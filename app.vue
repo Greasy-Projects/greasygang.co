@@ -45,7 +45,7 @@ try {
 					v-if="!user"
 					:href="
 						config.apiBase +
-						'/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email'
+						'/login/twitch?scopes=user:read:email'
 					"
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
