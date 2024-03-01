@@ -23,13 +23,13 @@ try {
 </script>
 <template>
 	<div class="bg-primary">
-		<header
+		<nav
 			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
 			<NuxtImg src="/gg.png" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">
 				<NuxtLink
-					href="/about"
+					href="/"
 					class="text-white hover:text-gray-100 text-xl underline underline-offset-6"
 					>Home</NuxtLink
 				>
@@ -57,7 +57,7 @@ try {
 					@click="logout"
 				></NuxtImg>
 			</div>
-		</header>
+		</nav>
 		<NuxtPage />
 	</div>
 </template>

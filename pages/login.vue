@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const router = useRouter();
+router.replace("/")
 const config = useRuntimeConfig().public;
 const buttons = [
 	{
@@ -12,7 +14,6 @@ const buttons = [
 		href: config.apiBase + "/login/discord?scopes=identify email connections",
 	},
 ];
-
 </script>
 <template>
 	<div class="font-IBM">
@@ -24,12 +25,10 @@ const buttons = [
 				target="_blank"
 				class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-home-button- hover:bg-home-button-hovered border-none"
 			>
-				<font-awesome-icon
-					:icon="`fa-brands ${button.icon}`"
-					class="sm:(w-10 h-10) w-8 h-8"
-				>
-					<use :xlink:href="button.icon" />
-				</font-awesome-icon>
+				<FontAwesomeIcon
+					:icon="[button.icon.type, button.icon.name]"
+					class="size-6"
+				/>
 			</NuxtLink>
 		</div>
 	</div>
