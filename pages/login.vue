@@ -1,12 +1,15 @@
 <script setup lang="ts">
+const config = useRuntimeConfig().public;
 const buttons = [
 	{
-		icon: "fa-twitch",
-		href: "http://localhost:4000/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email",
+		icon: { name: "twitch", type: "fab" },
+		href:
+			config.apiBase +
+			"/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email",
 	},
 	{
-		icon: "fa-discord",
-		href: "http://localhost:4000/login/discord?scopes=identify email connections",
+		icon: { name: "discord", type: "fab" },
+		href: config.apiBase + "/login/discord?scopes=identify email connections",
 	},
 ];
 </script>

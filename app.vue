@@ -8,13 +8,15 @@ useSeoMeta({
 	ogDescription: "Welcome to the Greasy Gang",
 	ogImage: "/favicon.webp",
 });
+const config = useRuntimeConfig().public;
+const user = await GqlGetMe();
 </script>
 <template>
 	<div class="bg-primary">
 		<header
 			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
-			<NuxtImg src="/gg.png" class="w-11 h-11"></NuxtImg>
+			<NuxtImg src="/gg.png" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">
 				<NuxtLink
 					href="/about"
@@ -30,10 +32,15 @@ useSeoMeta({
 			</div>
 			<div class="flex my-auto">
 				<NuxtLink
-					href="/about"
+					v-if="!user"
+					:href="
+						config.apiBase +
+						'/login/twitch?scopes=bits:read channel:read:editors channel:read:redemptions channel:read:subscriptions user:read:email'
+					"
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
 				>
+				<NuxtImg v-if="user.me.avatar" :src="user.me.avatar" class="size-11"></NuxtImg>
 			</div>
 		</header>
 		<NuxtPage />
