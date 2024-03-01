@@ -42,7 +42,7 @@ const buttons = [
 <template>
 	<div class="font-poppins">
 		<main
-			class="font-barlow flex items-center h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5 text-white"
+			class="font-barlow lt-md:pt-20 flex items-center min-h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5 text-white"
 		>
 			<div
 				class="md:grid grid-cols-subgrid grid-cols-1 md:grid-cols-2 justify-center gap-5 h-min"
@@ -135,8 +135,8 @@ const buttons = [
 	position: relative;
 	transition: all 0.15s linear 0s;
 	box-shadow: -6px 6px 0 var(--border);
-	top: 0;
-	left: 0;
+	top: -3px;
+	left: 3px;
 	&::after {
 		transition: all 0.15s linear 0s;
 		content: "";
@@ -164,8 +164,8 @@ const buttons = [
 	}
 
 	&:hover {
-		top: 3px;
-		left: -3px;
+		top: 0px;
+		left: 0px;
 		box-shadow: -3px 3px 0 var(--border);
 
 		&::after {
@@ -191,21 +191,6 @@ const buttons = [
 	text-transform: uppercase;
 	z-index: 2;
 	text-decoration: none;
-}
-a:active.btn-before {
-	top: 6px;
-	left: -6px;
-	box-shadow: none;
-
-	&:before {
-		bottom: 1px;
-		right: 1px;
-	}
-
-	&:after {
-		top: 1px;
-		left: 1px;
-	}
 }
 </style>
 <!-- .btn {
