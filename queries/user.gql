@@ -4,5 +4,6 @@ query GetMe {
 		platform
 		displayName
 		email
+		avatar
 	}
 }
