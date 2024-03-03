@@ -72,7 +72,6 @@ const buttons = [
 								<div
 									class="transition transition-colors flex bg-button shadow-2 btn px-6 py-1 h-15 gap-x-3 justify-center items-center"
 								>
-									<!-- class="transition transition-colors flex bg-button-hovered border-(4 solid primary) rounded-bl-sm border-l-(10 solid primary) border-b-(10 solid primary)  px-6 py-1 h-15 gap-x-3 justify-center items-center" -->
 									<FontAwesomeIcon
 										:icon="[button.icon.type, button.icon.name]"
 										class="size-6"
@@ -91,46 +90,22 @@ const buttons = [
 </template>
 
 <style scoped>
-.fade-out {
-	animation: fadeOut 1.5s ease-in-out 1s forwards;
-}
+a:active.btn {
+	top: 6px;
+	left: -6px;
+	box-shadow: none;
 
-@keyframes fadeOut {
-	from {
-		opacity: 1;
+	&:before {
+		bottom: 1px;
+		right: 1px;
 	}
-	to {
-		opacity: 0;
-	}
-}
-.fade-in {
-	animation: fadeIn 1.5s ease-in-out forwards;
-}
 
-@keyframes fadeIn {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
+	&:after {
+		top: 1px;
+		left: 1px;
 	}
 }
-
-.pop-in {
-	animation: popIn 1s ease-out;
-}
-
-@keyframes popIn {
-	from {
-		transform: translateY(50px);
-		opacity: 0;
-	}
-	to {
-		transform: translateY(0);
-		opacity: 1;
-	}
-}
-.btn-before {
+a:not(:active).btn-before {
 	--border: theme(colors.primary);
 	position: relative;
 	transition: all 0.15s linear 0s;
@@ -183,9 +158,7 @@ const buttons = [
 		}
 	}
 }
-.btn {
-	--border: theme(colors.primary);
-
+a:not(:active).btn-before > .btn {
 	transition: all 0.15s linear 0s;
 	position: relative;
 	text-transform: uppercase;
@@ -193,85 +166,5 @@ const buttons = [
 	text-decoration: none;
 }
 </style>
-<!-- .btn {
-	top: 0;
-	left: 0;
-	transition: all 0.15s linear 0s;
-	position: relative;
-	display: inline-block;
-	padding: 15px 25px;
-	background-color: yellow;
-	text-transform: uppercase;
-	color: var(--button-border);
-	font-family: arial;
-	letter-spacing: 1px;
 
-	box-shadow: -6px 6px 0 var(--button-border);
-	text-decoration: none;
 
-	&:hover {
-		top: 3px;
-		left: -3px;
-		box-shadow: -3px 3px 0 var(--button-border);
-
-		&::after {
-			top: 1px;
-			left: -2px;
-			width: 4px;
-			height: 4px;
-		}
-
-		&::before {
-			bottom: -2px;
-			right: 1px;
-			width: 4px;
-			height: 4px;
-		}
-	}
-
-	&::after {
-		transition: all 0.15s linear 0s;
-		content: "";
-		position: absolute;
-		top: 2px;
-		left: -4px;
-		width: 8px;
-		height: 8px;
-		background-color: var(--button-border);
-		transform: rotate(45deg);
-		z-index: -1;
-	}
-
-	&::before {
-		transition: all 0.15s linear 0s;
-		content: "";
-		position: absolute;
-		bottom: -4px;
-		right: 2px;
-		width: 8px;
-		height: 8px;
-		background-color: var(--button-border);
-		transform: rotate(45deg);
-		z-index: -1;
-	}
-}
-
-a.btn {
-	position: relative;
-}
-
-a:active.btn {
-	top: 6px;
-	left: -6px;
-	box-shadow: none;
-
-	&:before {
-		bottom: 1px;
-		right: 1px;
-	}
-
-	&:after {
-		top: 1px;
-		left: 1px;
-	}
-} -->
