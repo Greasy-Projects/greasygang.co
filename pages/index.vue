@@ -90,30 +90,16 @@ const buttons = [
 </template>
 
 <style scoped>
-a:active.btn {
-	top: 6px;
-	left: -6px;
-	box-shadow: none;
-
-	&:before {
-		bottom: 1px;
-		right: 1px;
-	}
-
-	&:after {
-		top: 1px;
-		left: 1px;
-	}
-}
-a:not(:active).btn-before {
+a.btn-before {
 	--border: theme(colors.primary);
 	position: relative;
-	transition: all 0.15s linear 0s;
+	transition: all 0.1s;
 	box-shadow: -6px 6px 0 var(--border);
 	top: -3px;
 	left: 3px;
+
 	&::after {
-		transition: all 0.15s linear 0s;
+		transition: all 0.1s;
 		content: "";
 		position: absolute;
 		top: 2px;
@@ -126,7 +112,7 @@ a:not(:active).btn-before {
 	}
 
 	&::before {
-		transition: all 0.15s linear 0s;
+		transition: all 0.1s;
 		content: "";
 		position: absolute;
 		bottom: -4px;
@@ -142,14 +128,14 @@ a:not(:active).btn-before {
 		top: 0px;
 		left: 0px;
 		box-shadow: -3px 3px 0 var(--border);
-
+		
 		&::after {
 			top: 1px;
 			left: -2px;
 			width: 4px;
 			height: 4px;
 		}
-
+		
 		&::before {
 			bottom: -2px;
 			right: 1px;
@@ -157,14 +143,25 @@ a:not(:active).btn-before {
 			height: 4px;
 		}
 	}
+	
+	&:active:hover {
+		top: 3px;
+		left: -3px;
+		box-shadow: 0px 0px 0 var(--border);
+		&::after {
+			width: 0px;
+			height: 0px;
+		}
+
+		&::before {
+			width: 0px;
+			height: 0px;
+		}
+	}
 }
-a:not(:active).btn-before > .btn {
-	transition: all 0.15s linear 0s;
+.btn {
+	box-shadow: 0.4px -0.4px 5px 0 rgba(13, 10, 8, 0.1);
 	position: relative;
-	text-transform: uppercase;
 	z-index: 2;
-	text-decoration: none;
 }
 </style>
-
-
