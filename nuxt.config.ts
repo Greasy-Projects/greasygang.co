@@ -9,6 +9,14 @@ export default defineNuxtConfig({
 		"@fortawesome/fontawesome-svg-core/styles.css",
 	],
 	devtools: { enabled: true },
+	build: {
+		transpile: [
+			"@fortawesome/fontawesome-svg-core",
+			"@fortawesome/vue-fontawesome",
+			"@fortawesome/free-solid-svg-icons",
+			"@fortawesome/free-brands-svg-icons",
+		],
+	},
 	modules: [
 		"@unocss/nuxt",
 		"@nuxtjs/google-fonts",
