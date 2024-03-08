@@ -24,7 +24,7 @@ try {
 <template>
 	<div class="bg-primary">
 		<nav
-			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
+			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
 			<NuxtImg src="/gg.png" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">

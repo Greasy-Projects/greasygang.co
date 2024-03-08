@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 const buttons = [
 	{
 		icon: { name: "discord", type: "fab" },
@@ -39,29 +38,25 @@ const buttons = [
 ];
 </script>
 <template>
-	<main
-		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
-	>
-		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
-			<div class="grid h-3xl xs:grid-rows-5 gap-5">
-				<div class="flex flex-col gap-0 row-span-2">
-					<div class="flex h-4/6 relative row-span-4">
+	<main class="font-poppins text-white mx-5">
+		<div class="pt-20 grid lg:grid-cols-2 mx-a gap-5 max-w-7xl">
+			<div class="grid xs:h-3xl xs:grid-rows-5 gap-5">
+				<div class="row-span-3">
+					<NuxtImg
+						src="/mac/babe.png"
+						class="w-full h-full object-cover rounded-xl"
+					></NuxtImg>
+				</div>
+				<div class="flex lt-xs:hidden lg:flex-col gap-0 row-span-2">
+					<div class="flex lg:h-4/6 relative lt-lg:w-4/6 row-span-4">
 						<NuxtImg
 							src="https://cdn.discordapp.com/attachments/1201675212870144030/1215024338437152839/FC_Tips_EN_1.jpg?ex=65fb3e98&is=65e8c998&hm=4eaadcdc522fbb1270c125c53d79ff2ce4a50fb46177effdf2c2c338d4673734&"
-							class="rounded-t-xl rounded-tl-50 w-full h-full object-left object-cover"
+							class="lg:rounded-t-xl lt-lg:rounded-l-xl w-full h-full object-left object-cover"
 						>
 						</NuxtImg>
-						<div
-							class="absolute bg-secondary h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
-						>
-							Use code&nbsp;<span class="font-700 color-white">JUSTFISH</span
-							>&nbsp;to get in-game rewards!
-						</div>
 						<div class="absolute bottom-2 right-2">
-							<NuxtLink href="https://strms.net/fishing_clash_greasymac" target="_blank" class="w-full lg:w-80 select-none">
-								<div
-									class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-15 justify-center items-center"
-								>
+							<NuxtLink target="_blank" class="w-full lg:w-80 select-none">
+								<div class="rounded-xl px-4 flex bg-button h-15 justify-center items-center">
 									<p
 										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
 									>
@@ -72,10 +67,10 @@ const buttons = [
 						</div>
 					</div>
 					<div
-						class="bg-secondary rounded-b-xl row-span-2 px-4 h-2/6 px-4 py-2 gap-1 flex justify-center items-center"
+						class="bg-secondary lg:rounded-b-xl row-span-2 xs:text-xs sm:text-5 md:text-6 lg:(text-base px-4 h-2/6\) px-4 gap-1 lt-lg:(px-2 space-y-2 w-2/6 flex-col rounded-r-xl) flex justify-center items-center"
 					>
 						<p
-							class="flex items-center text-3vw sm:text-base justify-evenly lg:leading-normal leading-4 sm:leading-2.5vw"
+							class="flex items-center justify-evenly lg:leading-normal leading-4 sm:leading-2.5vw"
 						>
 							Download Fishing Clash now and become a world class angler! Unlock
 							the Lake Guntersville and Mediterranean Sea fisheries to support
@@ -83,14 +78,8 @@ const buttons = [
 						</p>
 					</div>
 				</div>
-				<div class="row-span-3">
-					<NuxtImg
-						src="/mac/babe.png"
-						class="w-full h-full object-cover rounded-xl"
-					></NuxtImg>
-				</div>
 			</div>
-			<div class="select-none lg:h-3xl flex flex-col">
+			<div class="select-none h-full flex flex-col">
 				<div>
 					<h1
 						class="font-bebas text-20vw md:text-12vw xl:text-10em text-center"
@@ -165,14 +154,14 @@ a.btn-before {
 		top: 0px;
 		left: 0px;
 		box-shadow: -3px 3px 0 var(--border);
-		
+
 		&::after {
 			top: 1px;
 			left: -2px;
 			width: 4px;
 			height: 4px;
 		}
-		
+
 		&::before {
 			bottom: -2px;
 			right: 1px;
@@ -180,7 +169,7 @@ a.btn-before {
 			height: 4px;
 		}
 	}
-	
+
 	&:active:hover {
 		top: 3px;
 		left: -3px;
