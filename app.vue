@@ -22,7 +22,7 @@ try {
 }
 </script>
 <template>
-	<div class="bg-primary">
+	<div>
 		<nav
 			class="absolute w-screen mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
@@ -58,3 +58,20 @@ try {
 		<NuxtPage />
 	</div>
 </template>
+<style>
+:root {
+	--primary: theme(colors.primary);
+}
+* {
+	border: none;
+}
+
+body {
+	background-color: var(--primary);
+}
+
+a {
+	text-decoration: none;
+	color: white;
+}
+</style>

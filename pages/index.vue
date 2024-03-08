@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 const buttons = [
 	{
@@ -128,14 +127,14 @@ a.btn-before {
 		top: 0px;
 		left: 0px;
 		box-shadow: -3px 3px 0 var(--border);
-		
+
 		&::after {
 			top: 1px;
 			left: -2px;
 			width: 4px;
 			height: 4px;
 		}
-		
+
 		&::before {
 			bottom: -2px;
 			right: 1px;
@@ -143,7 +142,7 @@ a.btn-before {
 			height: 4px;
 		}
 	}
-	
+
 	&:active:hover {
 		top: 3px;
 		left: -3px;
