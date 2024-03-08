@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 const buttons = [
 	{
 		icon: { name: "discord", type: "fab" },
@@ -39,53 +38,96 @@ const buttons = [
 ];
 </script>
 <template>
-	<div class="font-poppins">
-		<main
-			class="font-barlow lt-md:pt-20 flex items-center min-h-screen gap-5 max-w-7xl w-fit mx-a px-8 py-5 space-y-5 text-white"
-		>
-			<div
-				class="md:grid grid-cols-subgrid grid-cols-1 md:grid-cols-2 justify-center gap-5 h-min"
-			>
-				<NuxtImg
-					src="/mac/babe.png"
-					class="h-full w-full object-cover rounded-xl mx-a"
-				>
-				</NuxtImg>
-				<div class="grid grid-rows-1 gap-2 select-none">
-					<div>
-						<h1
-							class="font-bebas text-20vw md:text-12vw xl:text-10em text-center"
+	<main
+		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
+	>
+		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
+			<div class="grid h-3xl xs:grid-rows-5 gap-5">
+				<div class="flex flex-col gap-0 row-span-2">
+					<div class="flex h-4/6 relative row-span-4">
+						<NuxtImg
+							src="https://cdn.discordapp.com/attachments/1201675212870144030/1215024338437152839/FC_Tips_EN_1.jpg?ex=65fb3e98&is=65e8c998&hm=4eaadcdc522fbb1270c125c53d79ff2ce4a50fb46177effdf2c2c338d4673734&"
+							class="rounded-t-2xl rounded-tl-10 sm:rounded-tl-50 w-full h-full object-left object-cover"
 						>
-							GreasyMac
-						</h1>
+						</NuxtImg>
 						<div
-							class="gap-4 p-6 bg-secondary color-primary rounded-xl flex flex-col"
+							class="absolute bg-secondary text-nowrap lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
 						>
+							Use code&nbsp;<span class="font-700 color-white">JUSTFISH</span
+							>&nbsp;to get<span class="lt-sm:hidden">&nbsp;in-game</span
+							>&nbsp;rewards!
+						</div>
+						<div class="absolute bottom-2 right-2">
 							<NuxtLink
-								v-for="button in buttons"
-								:key="button.href"
-								:href="button.href"
+								href="https://strms.net/fishing_clash_greasymac"
 								target="_blank"
-								class="btn-before"
+								class="w-full lg:w-80 select-none"
 							>
 								<div
-									class="transition transition-colors flex bg-button shadow-2 btn px-6 py-1 h-15 gap-x-3 justify-center items-center"
+									class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-15 justify-center items-center"
 								>
-									<FontAwesomeIcon
-										:icon="[button.icon.type, button.icon.name]"
-										class="size-6"
-									/>
-									<p class="font-600 text-lg tracking-widest uppercase h-min">
-										{{ button.text }}
+									<p
+										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
+									>
+										PLAY GAME
 									</p>
 								</div>
 							</NuxtLink>
 						</div>
 					</div>
+					<div
+						class="bg-secondary rounded-b-xl row-span-2 px-4 h-2/6 px-4 py-2 gap-1 flex justify-center items-center"
+					>
+						<p
+							class="flex items-center text-3vw sm:text-base justify-evenly lg:leading-normal leading-4 sm:leading-2.5vw"
+						>
+							Download Fishing Clash now and become a world class angler! Unlock
+							the Lake Guntersville and Mediterranean Sea fisheries to support
+							the stream.
+						</p>
+					</div>
+				</div>
+				<div class="row-span-3">
+					<NuxtImg
+						src="/mac/babe.png"
+						class="w-full h-full object-cover rounded-xl"
+					></NuxtImg>
 				</div>
 			</div>
-		</main>
-	</div>
+			<div class="select-none lg:h-3xl flex flex-col">
+				<div>
+					<h1
+						class="font-bebas text-20vw md:text-12vw xl:text-10em text-center"
+					>
+						GreasyMac
+					</h1>
+				</div>
+				<div
+					class="flex flex-col space-y-4 h-full p-6 justify-between bg-secondary rounded-xl"
+				>
+					<NuxtLink
+						v-for="button in buttons"
+						:key="button.href"
+						:href="button.href"
+						target="_blank"
+						class="btn-before"
+					>
+						<div
+							class="transition transition-colors flex bg-button btn h-15 gap-x-3 justify-center items-center"
+						>
+							<FontAwesomeIcon
+								:icon="[button.icon.type, button.icon.name]"
+								class="size-6"
+							/>
+							<p class="font-600 text-lg tracking-widest uppercase">
+								{{ button.text }}
+							</p>
+						</div>
+					</NuxtLink>
+				</div>
+			</div>
+		</div>
+	</main>
 </template>
 
 <style scoped>
