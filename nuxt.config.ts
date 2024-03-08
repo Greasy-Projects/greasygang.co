@@ -30,6 +30,7 @@ export default defineNuxtConfig({
 		public: {
 			apiBase: process.env.API_BASE,
 			callbackUrl: process.env.CALLBACK_URL,
+			branch: process.env.CONTENT_BRANCH ?? "main",
 		},
 	},
 	"graphql-client": {
@@ -42,7 +43,8 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
-		quality: 80,
+		domains: ["https://raw.githubusercontent.com/Greasy-Projects/content/main"],
+		quality: 100,
 		screens: {
 			xs: 320,
 			sm: 640,
