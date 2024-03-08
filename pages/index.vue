@@ -48,14 +48,14 @@ const buttons = [
 					<div class="flex h-4/6 relative row-span-4">
 						<NuxtImg
 							src="https://cdn.discordapp.com/attachments/1201675212870144030/1215024338437152839/FC_Tips_EN_1.jpg?ex=65fb3e98&is=65e8c998&hm=4eaadcdc522fbb1270c125c53d79ff2ce4a50fb46177effdf2c2c338d4673734&"
-							class="rounded-t-xl rounded-tl-50 w-full h-full object-left object-cover"
+							class="rounded-t-2xl xs:rounded-tl-10 sn:rounded-tl-20 md:rounded-tl-50 w-full h-full object-left object-cover"
 						>
 						</NuxtImg>
 						<div
-							class="absolute bg-secondary h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
+							class="absolute bg-secondary text-nowrap text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
 						>
 							Use code&nbsp;<span class="font-700 color-white">JUSTFISH</span
-							>&nbsp;to get in-game rewards!
+							>&nbsp;to get<span class="lt-sm:hidden">&nbsp;in-game&nbsp;</span>rewards!
 						</div>
 						<div class="absolute bottom-2 right-2">
 							<NuxtLink href="https://strms.net/fishing_clash_greasymac" target="_blank" class="w-full lg:w-80 select-none">

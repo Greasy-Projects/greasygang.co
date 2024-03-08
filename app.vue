@@ -36,6 +36,7 @@ try {
 				<NuxtLink
 					href="https://greasymac.fandom.com/wiki/GreasyMac_Wiki"
 					external
+					target="_blank"
 					class="text-white text-xl hover:text-gray-100"
 					>About</NuxtLink
 				>
