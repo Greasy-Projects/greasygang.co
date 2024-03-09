@@ -36,14 +36,9 @@ const buttons = [
 		href: "https://open.spotify.com/playlist/21phkh5dZrZtO4E9Bf9qUy",
 	},
 ];
-type Sponsor = {
-	enabled: boolean;
-	image: string;
-	code: string;
-	description: string;
-	url: string;
-};
-const sponsor = ref<Sponsor>();
+import type { z } from "zod";
+import Sponsor from "~/schemas/sponsor";
+const sponsor = ref<z.infer<typeof Sponsor>>();
 try {
 	sponsor.value = JSON.parse(
 		(
@@ -62,6 +57,7 @@ try {
 	<main
 		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
 	>
+	
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
 			<div
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"

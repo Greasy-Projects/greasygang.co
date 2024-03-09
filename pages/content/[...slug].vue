@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { z, ZodError } from "zod";
+import { number, z, ZodBoolean, ZodError, ZodString } from "zod";
 import { push } from "notivue";
 import { GqlSetContent } from "#gql";
 const errorRef = ref<{ [key: string]: string }>({});
@@ -24,6 +24,41 @@ function getDefaults<Schema extends z.AnyZodObject>(schema: Schema) {
 		})
 	);
 }
+function getCheckValue<T>(key: string, kind: string): T | number {
+	const checks = schema.shape[key]._def.checks;
+
+	for (const check of checks) {
+		if (check.kind === kind) {
+			return check.value as T;
+		}
+	}
+	return 0;
+}
+// async function fetchImages() {
+// 	const repoOwner = "Greasy-Projects";
+// 	const repoName = "content";
+// 	const directoryPath = "website/images";
+// 	const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${directoryPath}`;
+
+// 	try {
+// 		const response = await useFetch(apiUrl);
+
+// 		const imageUrls = response.data.value
+// 			.filter(
+// 				item =>
+// 					item.type === "file" && item.name.match(/\.(jpeg|jpg|png|gif)$/i)
+// 			)
+// 			.map(item => item.download_url);
+
+// 		console.log(imageUrls);
+
+// 		return imageUrls;
+// 	} catch (error) {
+// 		console.error("Error fetching images:", error);
+// 		return [];
+// 	}
+// }
+// fetchImages();
 const fetch = async () => {
 	try {
 		formData.value = JSON.parse(
@@ -41,9 +76,9 @@ const fetch = async () => {
 await fetch();
 const validate = () => {
 	try {
-		const validatedData = schema.parse(formData.value);
-
+		schema.parse(formData.value);
 		errorRef.value = {};
+		return true;
 	} catch (error) {
 		errorRef.value = {};
 
@@ -53,19 +88,25 @@ const validate = () => {
 				errorRef.value[path] = err.message;
 			});
 		}
+		return false;
 	}
 };
-const TypeName = (key: string) =>
-	schema.shape[key]._def.innerType?._def.typeName ??
-	schema.shape[key]._def.typeName;
+const TypeName = (key: string, type: any) => schema.shape[key] instanceof type;
+// ._def.innerType?._def.typeName ??
+// schema.shape[key]._def?.schema?._def.typeName ??
+// schema.shape[key]._def.typeName;
 
 async function setTempContent() {
 	try {
-		const res = await GqlSetTempContent({
-			path,
-			content: JSON.stringify(formData.value),
-		});
-		if (res.tempContent.status === 200) push.success(res.tempContent.message);
+		if (validate()) {
+			const res = await GqlSetTempContent({
+				path,
+				content: JSON.stringify(formData.value),
+			});
+			if (res.tempContent.status === 200) push.success(res.tempContent.message);
+		} else {
+			push.error("Invalid Data");
+		}
 	} catch (e) {
 		push.error((e as any).gqlErrors[0].message);
 	}
@@ -84,15 +125,18 @@ async function invalidateCache() {
 	validate();
 }
 const saveChanges = async () => {
-	// TODO: validate schema
 	try {
-		const res = await GqlSetContent({
-			path,
-			content: JSON.stringify(formData.value),
-		});
-		if (res.setContent.status === 200) push.success(res.setContent.message);
-		if (res.setContent.status === 202) push.warning(res.setContent.message);
-		if (res.setContent.status === 500) push.error(res.setContent.message);
+		if (validate()) {
+			const res = await GqlSetContent({
+				path,
+				content: JSON.stringify(formData.value),
+			});
+			if (res.setContent.status === 200) push.success(res.setContent.message);
+			if (res.setContent.status === 202) push.warning(res.setContent.message);
+			if (res.setContent.status === 500) push.error(res.setContent.message);
+		} else {
+			push.error("Invalid Data");
+		}
 	} catch (e) {
 		push.error((e as any).gqlErrors[0].message);
 	}
@@ -118,21 +162,25 @@ const saveChanges = async () => {
 					>
 						{{ errorRef[key] }}
 					</p>
-
-					<div v-if="TypeName(key) === 'ZodString'">
-						<input
+					<div v-if="TypeName(key, ZodString)">
+						<textarea
 							v-model="formData[key]"
 							type="text"
-							class="border w-lg p-2"
+							class="border h-8 w-lg p-2"
+							:class="{
+								'resize-y': getCheckValue<number>(key, 'min') >= 100,
+								'resize-none': getCheckValue<number>(key, 'min') < 100,
+							}"
 							:placeholder="key"
 							@input="validate"
 						/>
 					</div>
-					<div v-else-if="TypeName(key) === 'ZodBoolean'">
+					<div v-else-if="TypeName(key, ZodBoolean)">
 						<label class="switch">
 							<input v-model="formData[key]" class="size-5" type="checkbox" />
 						</label>
 					</div>
+					<div v-else>unsupported data type</div>
 				</div>
 			</template>
 			<div class="space-x-2">
