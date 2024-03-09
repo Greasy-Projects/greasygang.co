@@ -1,0 +1,3 @@
+query GetContent($path: String!) {
+  content(path: $path)
+}

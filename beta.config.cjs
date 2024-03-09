@@ -7,6 +7,7 @@ module.exports = {
 			autorestart: true,
 			env: {
 				NODE_ENV: "production",
+				// CONTENT_BRANCH: "beta"
 			},
 		},
 	],

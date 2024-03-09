@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { GqlGetContent } from "#gql";
+
 const buttons = [
 	{
 		icon: { name: "discord", type: "fab" },
@@ -36,6 +38,25 @@ const buttons = [
 		href: "https://open.spotify.com/playlist/21phkh5dZrZtO4E9Bf9qUy",
 	},
 ];
+type Sponsor = {
+	enabled: boolean;
+	image: string;
+	code: string;
+	description: string;
+	url: string;
+};
+const sponsor = ref<Sponsor>();
+try {
+	sponsor.value = JSON.parse(
+		(
+			await GqlGetContent({
+				path: "/website/sponsor",
+			})
+		).content
+	);
+} catch {
+	//
+}
 </script>
 <template>
 	<main
@@ -43,23 +64,30 @@ const buttons = [
 	>
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
 			<div class="grid h-3xl xs:grid-rows-5 gap-5">
-				<div class="flex flex-col gap-0 row-span-2">
+				<div
+					v-if="sponsor && sponsor.enabled"
+					class="flex flex-col gap-0 row-span-2"
+				>
 					<div class="flex h-4/6 relative row-span-4">
 						<NuxtImg
-							src="https://cdn.discordapp.com/attachments/1201675212870144030/1215024338437152839/FC_Tips_EN_1.jpg?ex=65fb3e98&is=65e8c998&hm=4eaadcdc522fbb1270c125c53d79ff2ce4a50fb46177effdf2c2c338d4673734&"
-							class="rounded-t-2xl rounded-tl-10 sm:rounded-tl-50 w-full h-full object-left object-cover"
+							width="600"
+							height="200"
+							:src="$ContentImage(sponsor.image)"
+							class="rounded-t-2xl rounded-tl-5 sm:rounded-tl-50 w-full h-full object-left object-cover"
 						>
 						</NuxtImg>
 						<div
-							class="absolute bg-secondary text-nowrap lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
+							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
 						>
-							Use code&nbsp;<span class="font-700 color-white">JUSTFISH</span
+							Use code&nbsp;<span class="font-700 color-white">{{
+								sponsor.code
+							}}</span
 							>&nbsp;to get<span class="lt-sm:hidden">&nbsp;in-game</span
 							>&nbsp;rewards!
 						</div>
 						<div class="absolute bottom-2 right-2">
 							<NuxtLink
-								href="https://strms.net/fishing_clash_greasymac"
+								:href="sponsor.url"
 								target="_blank"
 								class="w-full lg:w-80 select-none"
 							>
@@ -79,16 +107,20 @@ const buttons = [
 						class="bg-secondary rounded-b-xl row-span-2 px-4 h-2/6 px-4 py-2 gap-1 flex justify-center items-center"
 					>
 						<p
-							class="flex items-center text-3vw sm:text-base justify-evenly lg:leading-normal leading-4 sm:leading-2.5vw"
+							class="flex items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw"
 						>
-							Download Fishing Clash now and become a world class angler! Unlock
-							the Lake Guntersville and Mediterranean Sea fisheries to support
-							the stream.
+							{{ sponsor.description }}
 						</p>
 					</div>
 				</div>
-				<div class="row-span-3">
+				<div
+					:class="{
+						'row-span-3': sponsor && sponsor.enabled,
+						'row-span-full': !sponsor || !sponsor.enabled,
+					}"
+				>
 					<NuxtImg
+						
 						src="/mac/babe.png"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>
