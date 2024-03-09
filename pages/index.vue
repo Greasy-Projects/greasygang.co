@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { GqlGetContent } from "#gql";
-
 const buttons = [
 	{
 		icon: { name: "discord", type: "fab" },
@@ -120,7 +118,6 @@ try {
 					}"
 				>
 					<NuxtImg
-						
 						src="/mac/babe.png"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>

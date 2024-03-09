@@ -30,6 +30,7 @@ export default defineNuxtConfig({
 		public: {
 			apiBase: process.env.API_BASE,
 			callbackUrl: process.env.CALLBACK_URL,
+			env: process.env.NODE_ENV || "development",
 			branch: process.env.CONTENT_BRANCH ?? "main",
 		},
 	},
