@@ -27,7 +27,8 @@
 		"prettier": "^3.2.5",
 		"tsx": "^4.7.1",
 		"vue": "^3.4.21",
-		"vue-router": "^4.3.0"
+		"vue-router": "^4.3.0",
+		"vuetify": "^3.5.8"
 	},
 	"packageManager": "pnpm@8.15.1",
 	"dependencies": {
@@ -36,6 +37,8 @@
 		"@fortawesome/free-solid-svg-icons": "^6.5.1",
 		"@fortawesome/vue-fontawesome": "^3.0.6",
 		"@nuxt/image": "^1.4.0",
-		"@unocss/reset": "^0.58.5"
+		"@unocss/reset": "^0.58.5",
+		"notivue": "^2.2.1",
+		"zod": "^3.22.4"
 	}
 }

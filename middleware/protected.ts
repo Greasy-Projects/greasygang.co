@@ -4,6 +4,7 @@ export default defineNuxtRouteMiddleware(async m => {
 	const config = useRuntimeConfig().public;
 	const api = new URL(config.apiBase);
 	api.pathname = "/token/validate";
+	console.log(m.fullPath);
 
 	if (token) {
 		const validate = await useFetch(api.toString(), {
@@ -11,8 +12,7 @@ export default defineNuxtRouteMiddleware(async m => {
 				authorization: token,
 			},
 		});
-		if (validate.status.value === "success")
-			return useGqlHeaders({ authorization: `Bearer ${token}` });
+		if (validate.status.value === "success") return;
 	}
 
 	api.pathname = "/login/twitch";

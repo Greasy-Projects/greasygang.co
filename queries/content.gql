@@ -1,3 +1,24 @@
 query GetContent($path: String!) {
-  content(path: $path)
+	content(path: $path)
+}
+
+mutation invalidateContent($path: String!) {
+	invalidateContent(path: $path) {
+		status
+		message
+	}
+}
+
+mutation setTempContent($path: String!, $content: String!) {
+	tempContent(path: $path, content: $content) {
+		status
+		message
+	}
+}
+
+mutation setContent($path: String!, $content: String!) {
+	setContent(path: $path, content: $content) {
+		status
+		message
+	}
 }

@@ -8,6 +8,7 @@ useSeoMeta({
 	ogDescription: "Welcome to the Greasy Gang",
 	ogImage: "/favicon.webp",
 });
+
 const config = useRuntimeConfig().public;
 const user = ref();
 function logout() {
@@ -23,6 +24,9 @@ try {
 </script>
 <template>
 	<div>
+		<Notivue v-slot="item" class="font-poppins">
+			<Notification :item="item" />
+		</Notivue>
 		<nav
 			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
@@ -44,7 +48,7 @@ try {
 			<div class="flex my-auto">
 				<NuxtLink
 					v-if="!user"
-					:href="config.apiBase + '/login/twitch?scopes=user:read:email'"
+					:href="config.apiBase + '/login/twitch?scopes=user:read:email&redirect=' + $route.fullPath"
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
 				>

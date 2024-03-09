@@ -6,6 +6,8 @@ export default defineNuxtConfig({
 		"@unocss/reset/sanitize/assets.css",
 		"@unocss/reset/eric-meyer.css",
 		"@fortawesome/fontawesome-svg-core/styles.css",
+		"notivue/notifications.css",
+		"notivue/animations.css",
 	],
 	devtools: { enabled: true },
 	build: {
@@ -21,7 +23,9 @@ export default defineNuxtConfig({
 		"@nuxtjs/google-fonts",
 		"@nuxt/image",
 		"nuxt-graphql-client",
+		"notivue/nuxt",
 	],
+	notivue: { limit: 4, enqueue: true, position: "bottom-right" },
 	googleFonts: {
 		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
 		preload: true,
@@ -44,7 +48,7 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
-		domains: ["https://raw.githubusercontent.com/Greasy-Projects/content/main"],
+		domains: ["https://raw.githubusercontent.com/Greasy-Projects/content"],
 		quality: 100,
 		screens: {
 			xs: 320,
