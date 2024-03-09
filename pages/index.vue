@@ -55,13 +55,18 @@ try {
 } catch {
 	//
 }
+
+// sponsor.value = { ...sponsor.value, enabled: false };
 </script>
 <template>
 	<main
 		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
 	>
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
-			<div class="grid h-3xl xs:grid-rows-5 gap-5">
+			<div
+				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
+				class="grid w-full xs:grid-rows-5 gap-5"
+			>
 				<div
 					v-if="sponsor && sponsor.enabled"
 					class="flex flex-col gap-0 row-span-2"
@@ -114,7 +119,7 @@ try {
 				<div
 					:class="{
 						'row-span-3': sponsor && sponsor.enabled,
-						'row-span-full': !sponsor || !sponsor.enabled,
+						'row-span-full': !sponsor?.enabled,
 					}"
 				>
 					<NuxtImg
@@ -126,7 +131,7 @@ try {
 			<div class="select-none lg:h-3xl flex flex-col">
 				<div>
 					<h1
-						class="font-bebas text-20vw md:text-12vw xl:text-10em text-center"
+						class="font-bebas text-25vw lg:text-12vw xl:text-10em text-center"
 					>
 						GreasyMac
 					</h1>
