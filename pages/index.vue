@@ -71,7 +71,7 @@ try {
 							width="600"
 							height="200"
 							:src="$ContentImage(sponsor.image)"
-							class="rounded-t-2xl rounded-tl-5 sm:rounded-tl-50 w-full h-full object-left object-cover"
+							class="rounded-t-2xl rounded-tl-10vw sm:rounded-tl-10vw w-full h-full object-left object-cover"
 						>
 						</NuxtImg>
 						<div
