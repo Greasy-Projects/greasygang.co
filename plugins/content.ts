@@ -4,7 +4,7 @@ export default defineNuxtPlugin(() => {
 	return {
 		provide: {
 			ContentImage: (path: string) =>
-				`https://raw.githubusercontent.com/Greasy-Projects/content/${config.branch}/website/images/${path}`,
+				`${config.apiBase}/image/${config.branch}/website/images/${path}`,
 		},
 	};
 });

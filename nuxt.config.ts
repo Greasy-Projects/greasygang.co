@@ -48,7 +48,7 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
-		domains: ["https://raw.githubusercontent.com/Greasy-Projects/content"],
+		domains: [process.env.API_BASE ?? ""],
 		quality: 100,
 		screens: {
 			xs: 320,
