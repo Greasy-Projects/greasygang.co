@@ -1,6 +1,6 @@
 import { library, config } from "@fortawesome/fontawesome-svg-core";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faDollarSign } from "@fortawesome/free-solid-svg-icons";
+import { faDollarSign, faDownload } from "@fortawesome/free-solid-svg-icons";
 import {
 	faDiscord,
 	faTwitch,
@@ -13,6 +13,7 @@ import {
 config.autoAddCss = false;
 
 library.add(
+	faDownload,
 	faDollarSign,
 	faDiscord,
 	faTwitch,
