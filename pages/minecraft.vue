@@ -21,7 +21,6 @@ const files = ["curseforge.zip", "prism.zip", "modrinth.mrpack	"];
 					v-for="file in files"
 					:key="file"
 					:href="downloadURL + file"
-					target="_blank"
 					:style="$BGContentImage('minecraft/button.png')"
 					class="mc-button bg-cover bg-center"
 				>
