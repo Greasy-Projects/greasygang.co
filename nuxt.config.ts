@@ -19,13 +19,13 @@ export default defineNuxtConfig({
 		],
 	},
 	modules: [
-        "@unocss/nuxt",
-        "@nuxtjs/google-fonts",
-        "@nuxt/image",
-        "nuxt-graphql-client",
-        "notivue/nuxt",
-        "nuxt-build-cache"
-    ],
+		"@unocss/nuxt",
+		"@nuxtjs/google-fonts",
+		"@nuxt/image",
+		"nuxt-graphql-client",
+		"notivue/nuxt",
+		"nuxt-build-cache",
+	],
 	notivue: { limit: 4, enqueue: true, position: "bottom-right" },
 	googleFonts: {
 		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
