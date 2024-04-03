@@ -16,11 +16,13 @@ function logout() {
 	cookie.value = null;
 	user.value = null;
 }
-try {
-	user.value = await GqlGetMe();
-} catch {
-	/* empty */
-}
+user.value = await GqlGetMe().catch(() => {});
+const route = useRoute();
+const navs: { name: string; path: string }[] = [
+	{ name: "home", path: "/" },
+	{ name: "minecraft", path: "/minecraft" },
+	{ name: "about", path: "https://greasymac.fandom.com/wiki/GreasyMac_Wiki" },
+];
 </script>
 <template>
 	<div>
@@ -33,22 +35,22 @@ try {
 			<NuxtImg src="/gg.png" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">
 				<NuxtLink
-					href="/"
-					class="text-white hover:text-gray-100 text-xl underline underline-offset-6"
-					>Home</NuxtLink
-				>
-				<NuxtLink
-					href="https://greasymac.fandom.com/wiki/GreasyMac_Wiki"
-					external
-					target="_blank"
-					class="text-white text-xl hover:text-gray-100"
-					>About</NuxtLink
+					v-for="nav in navs"
+					:key="nav.path"
+					:href="nav.path"
+					:class="{ underline: nav.path === route.fullPath }"
+					class="text-white hover:text-gray-100 text-xl underline-offset-6"
+					>{{ nav.name }}</NuxtLink
 				>
 			</div>
 			<div class="flex my-auto">
 				<NuxtLink
 					v-if="!user"
-					:href="config.apiBase + '/login/twitch?scopes=user:read:email&redirect=' + $route.fullPath"
+					:href="
+						config.apiBase +
+						'/login/twitch?scopes=user:read:email&redirect=' +
+						$route.fullPath
+					"
 					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
 				>

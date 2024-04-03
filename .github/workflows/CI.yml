@@ -2,8 +2,8 @@ name: Build and Lint
 on: [pull_request]
 
 jobs:
-  test:
-    name: Build and Lint
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,6 +23,25 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2.4.0
+
+      - name: Install Node v20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Lint
         run: pnpm lint:ci

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { number, z, ZodBoolean, ZodError, ZodString } from "zod";
+import { z, ZodBoolean, ZodError, ZodString } from "zod";
 import { push } from "notivue";
-import { GqlSetContent } from "#gql";
 const errorRef = ref<{ [key: string]: string }>({});
 const responseRef = ref("");
 
