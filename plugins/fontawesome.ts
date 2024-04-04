@@ -1,6 +1,11 @@
 import { library, config } from "@fortawesome/fontawesome-svg-core";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faDollarSign, faDownload, faXmark, faChevronDown } from "@fortawesome/free-solid-svg-icons";
+import {
+	faDollarSign,
+	faDownload,
+	faXmark,
+	faChevronDown,
+} from "@fortawesome/free-solid-svg-icons";
 import {
 	faDiscord,
 	faTwitch,
