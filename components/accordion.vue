@@ -16,10 +16,10 @@ import { ref } from 'vue';
 <template>
   <div class="border-2 rounded-lg">
     <button
-      :arial-controls="'accordion-content-' + ariaTitle"
       :id="'accordion-control-' + ariaTitle"
-      @click.prevent="togglePanel"
-      class="font-poppins py-4 w-full font-medium text-gray-500 flex flex-row items-center justify-between bg-transparent border-solid border-t-2 border-b-0 border-x-0 border-gray-100">
+      :arial-controls="'accordion-content-' + ariaTitle"
+      class="font-poppins py-4 w-full font-medium text-gray-500 flex flex-row items-center justify-between bg-transparent border-solid border-t-2 border-b-0 border-x-0 border-gray-100"
+      @click.prevent="togglePanel">
       {{ title }}
       <FontAwesomeIcon
         v-if="showPanel" 
@@ -33,10 +33,10 @@ import { ref } from 'vue';
     </button>
     <Transition>
     <div
-      :aria-hidden="!showPanel"
+      v-if="showPanel"
       :id="'content-' + ariaTitle"
-      class="p-4"
-      v-if="showPanel">
+      :aria-hidden="!showPanel"
+      class="p-4">
       <slot></slot>
     </div>
     </Transition>

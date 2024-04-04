@@ -7,18 +7,6 @@ const files = ["curseforge.zip", "prism.zip" ];
 const isAccordionOpen = ref(false);
 </script>
 
-<style>
-.v-enter-active,
-.v-leave-active {
-  transition: opacity 0.5s ease;
-}
-
-.v-enter-from,
-.v-leave-to {
-  opacity: 0;
-}
-</style>
-
 <template>
 	<main>
 		<NuxtImg
@@ -54,14 +42,14 @@ const isAccordionOpen = ref(false);
 					</div>
 				</NuxtLink>
 			</div>
-			<div class="m-2" v-on:click="isAccordionOpen = true">
+			<div class="m-2" @click="isAccordionOpen = true">
 				<button class="font-bebas bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white text-lg"
 				>Instructions</button>
 			</div>
 		</div>
 
 		<Transition>
-		<div class="font-poppins relative z-10 transition-all" v-if="isAccordionOpen">
+		<div v-if="isAccordionOpen" class="font-poppins relative z-10 transition-all">
 			<div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"></div>
 
 			<div class="fixed inset-0 flex items-center justify-center">
@@ -72,13 +60,13 @@ const isAccordionOpen = ref(false);
 					aria-modal="true"
 				>
 					<div class="flex justify-between items-center">
-						<h2 class="text-lg font-medium text-gray-900" id="modal-title">
+						<h2 id="modal-title" class="text-lg font-medium text-gray-900">
 							Instructions
 						</h2>
 						<button
 							class="text-gray-400 hover:text-gray-500 bg-transparent"
 						>
-							<FontAwesomeIcon :icon="['fas', 'xmark']" class="h-4 w-4" v-on:click="isAccordionOpen = false" />
+							<FontAwesomeIcon :icon="['fas', 'xmark']" class="h-4 w-4" @click="isAccordionOpen = false" />
 						</button>
 					</div>
 					<div class="mt-4 text-sm text-gray-500">
@@ -92,7 +80,7 @@ const isAccordionOpen = ref(false);
 						</div>
 
 						<div class="my-4">
-							<Accordion title="Prism" ariaTitle="prism">
+							<Accordion title="Prism" aria-title="prism">
 							<p>
 								1. Download and install Prism from <a class="text-gray-500 hover:text-gray-600 underline" href="https://prismlauncher.org">prismlauncher.org</a><br>
 								2. Log in to Prism with your Microsoft account.<br>
@@ -100,7 +88,7 @@ const isAccordionOpen = ref(false);
 								4. Launch the modpack by double clicking the GreasyCraft icon or clicking the GreasyCraft icon and then pressing Launch on the right sidebar.
 							</p>
 							</Accordion>
-							<Accordion title="CurseForge" ariaTitle="curseforge">
+							<Accordion title="CurseForge" aria-title="curseforge">
 								<p>
 									1. Download and install Curseforge from <a class="text-gray-500 hover:text-gray-600 underline" href="https://www.curseforge.com">curseforge.com</a><br>
 									2. Click "Minecraft" (it may need to install)<br>
@@ -121,6 +109,18 @@ const isAccordionOpen = ref(false);
 		</Transition>
 	</main>
 </template>
+
+<style>
+.v-enter-active,
+.v-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+  opacity: 0;
+}
+</style>
 <style>
 @font-face {
 	font-family: "Minecraft";
