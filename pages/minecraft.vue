@@ -269,5 +269,8 @@ const isAccordionOpen = ref(false);
 			inset -2px -4px #0006,
 			inset 2px 2px #fff7;
 	}
+	.title > svg {
+		filter: drop-shadow(2px 2px #000a);
+	}
 }
 </style>
