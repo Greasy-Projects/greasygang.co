@@ -2,8 +2,7 @@
 const downloadURL = "https://cdn.greasygang.co/greasycraft/";
 const files = ["curseforge.zip", "prism.zip"];
 
-const isPrismModalOpen = ref(false);
-const isCurseForgeModalOpen = ref(false);
+const showModal = ref<string | null>(null);
 </script>
 
 <template>
@@ -26,11 +25,7 @@ const isCurseForgeModalOpen = ref(false);
 						<div
 							class="mc-button mc-font size-11 bg-cover bg-center"
 							:style="$BGContentImage('minecraft/button.png')"
-							@click="
-								file.includes('prism')
-									? (isPrismModalOpen = true)
-									: (isCurseForgeModalOpen = true)
-							"
+							@click="showModal = file"
 						>
 							<div class="h-full title flex justify-center items-center">
 								<FontAwesomeIcon :icon="['fas', 'info']" class="size-4" />
@@ -61,142 +56,71 @@ const isCurseForgeModalOpen = ref(false);
 
 		<!-- Prism Modal -->
 		<Transition>
-			<div v-if="isPrismModalOpen" class="mc-font relative z-10 transition-all">
-				<div
-					class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"
-				></div>
-
-				<div class="fixed inset-0 flex items-center justify-center">
-					<div
-						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900"
-						aria-labelledby="modal-title"
-						role="dialog"
-						aria-modal="true"
-						:style="$BGContentImageDarken('minecraft/dirt.png', 100, 100, 0.2)"
-					>
-						<div class="flex justify-between items-center">
-							<h2 id="modal-title" class="text-lg font-medium text-white">
-								Instructions
-							</h2>
-							<button class="text-white hover:text-gray-300 bg-transparent">
-								<FontAwesomeIcon
-									:icon="['fas', 'xmark']"
-									class="h-5 w-5 my-auto"
-									@click="isPrismModalOpen = false"
-								/>
-							</button>
-						</div>
-						<div class="mt-4 text-sm text-white">
-							<p>
-								Currently, we are supporting 2 modpack launchers, those being
-								<a
-									class="underline hover:text-gray-300"
-									href="https://prismlauncher.org/"
-									>Prism</a
-								>
-								and
-								<a
-									class="underline hover:text-gray-300"
-									href="https://www.curseforge.com/"
-									>CurseForge</a
-								>.
-							</p>
-							<br />
-
-							<p>
-								1. Download and install Prism from
-								<a
-									class="underline hover:text-gray-300"
-									href="https://prismlauncher.org"
-									>prismlauncher.org</a
-								><br />
-								2. Log in to Prism with your Microsoft account.<br />
-								3. Drag and drop the downloaded ZIP file
-								<a
-									class="text-[#5555FF]"
-									href="https://cdn.greasygang.co/greasycraft/prism.zip"
-									>(Prism.zip)</a
-								>
-								onto the main window.<br />
-								4. Launch the modpack by double clicking the GreasyCraft icon or
-								clicking the GreasyCraft icon and then pressing Launch on the
-								right sidebar.
-							</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		</Transition>
-
-		<!-- CurseForge Modal -->
-		<Transition>
 			<div
-				v-if="isCurseForgeModalOpen"
-				class="mc-font relative z-10 transition-all"
+				v-if="showModal"
+				class="fixed inset-0 h-dvh flex justify-center items-center"
 			>
 				<div
-					class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"
+					class="absolute w-full h-100vh bg-gray-900 bg-opacity-50 transition-opacity"
+					@click="showModal = null"
 				></div>
-
-				<div class="fixed inset-0 flex items-center justify-center">
-					<div
-						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900"
-						aria-labelledby="modal-title"
-						role="dialog"
-						aria-modal="true"
-						:style="$BGContentImageDarken('minecraft/dirt.png', 100, 100, 0.2)"
-					>
-						<div class="flex justify-between items-center">
-							<h2 id="modal-title" class="text-lg font-medium text-white">
-								Instructions
-							</h2>
-							<button class="text-white hover:text-gray-300 bg-transparent">
-								<FontAwesomeIcon
-									:icon="['fas', 'xmark']"
-									class="h-5 w-5 my-auto"
-									@click="isCurseForgeModalOpen = false"
-								/>
-							</button>
-						</div>
-						<div class="mt-4 text-sm text-white">
-							<p>
-								Currently, we are supporting 2 modpack launchers, those being
-								<a
-									class="underline hover:text-gray-300"
-									href="https://prismlauncher.org/"
-									>Prism</a
-								>
-								and
-								<a
-									class="underline hover:text-gray-300"
-									href="https://www.curseforge.com/"
-									>CurseForge</a
-								>.
-							</p>
-							<br />
-
-							<p>
-								1. Download and install Curseforge from
-								<a
-									class="underline hover:text-gray-300"
-									href="https://www.curseforge.com"
-									>curseforge.com</a
-								><br />
-								2. Click "Minecraft" (it may need to install)<br />
-								3. In the Minecraft tab, click Create Custom Profile in the top
-								right.<br />
-								4. Click "Import"<br />
-								5. Browse to the downloaded file
-								<a
-									class="text-[#5555FF]"
-									href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
-									>(CurseForge.zip)</a
-								><br />
-								6. After it's done initializing, launch the modpack.<br />
-								7. Log into the Minecraft launcher with your Microsoft account
-								if it isn't already<br />
-								8. Click Play.
-							</p>
+				<div class="mc-font mc-modal max-w-lg z-10 transition-all">
+					<div class="flex items-center justify-center">
+						<div
+							class="bg-repeat p-6 rounded-lg border-solid border-3 border-white shadow-inner shadow-gray-900"
+							aria-labelledby="modal-title"
+							role="dialog"
+							aria-modal="true"
+							:style="
+								$BGContentImage('minecraft/dirt.png', 100, 100, {
+									darken: 0.3,
+								})
+							"
+						>
+							<div class="flex justify-between items-center">
+								<h2 id="modal-title" class="text-lg font-medium text-white">
+									Install instructions
+								</h2>
+								<button class="text-white hover:text-gray-300 bg-transparent">
+									<FontAwesomeIcon
+										:icon="['fas', 'xmark']"
+										class="h-5 w-5 my-auto"
+										@click="showModal = null"
+									/>
+								</button>
+							</div>
+							<div class="mt-4 text-sm text-white">
+								<p v-if="showModal === 'curseforge.zip'">
+									1. Download and install Curseforge from
+									<a href="https://www.curseforge.com">curseforge.com</a><br />
+									2. Click "Minecraft" (it may need to install)<br />
+									3. In the Minecraft tab, click Create Custom Profile in the
+									top right.<br />
+									4. Click "Import"<br />
+									5. Browse to the downloaded file
+									<a href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
+										>(CurseForge.zip)</a
+									><br />
+									6. After it's done initializing, launch the modpack.<br />
+									7. Log into the Minecraft launcher with your Microsoft account
+									if it isn't already<br />
+									8. Click Play.
+								</p>
+								<p v-if="showModal === 'prism.zip'">
+									1. Download and install Prism from
+									<a href="https://prismlauncher.org">prismlauncher.org</a
+									><br />
+									2. Log in to Prism with your Microsoft account.<br />
+									3. Drag and drop the downloaded ZIP file
+									<a href="https://cdn.greasygang.co/greasycraft/prism.zip"
+										>(Prism.zip)</a
+									>
+									onto the main window.<br />
+									4. Launch the modpack by double clicking the GreasyCraft icon
+									or clicking the GreasyCraft icon and then pressing Launch on
+									the right sidebar.
+								</p>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -206,6 +130,15 @@ const isCurseForgeModalOpen = ref(false);
 </template>
 
 <style>
+.mc-modal {
+	a {
+		color: #55ffff;
+		font-weight: 700;
+		&:hover {
+			color: #32d1c4;
+		}
+	}
+}
 .v-enter-active,
 .v-leave-active {
 	transition: opacity 0.5s ease;
