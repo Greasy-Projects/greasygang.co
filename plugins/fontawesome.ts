@@ -5,7 +5,7 @@ import {
 	faDownload,
 	faXmark,
 	faChevronDown,
-	faInfo
+	faInfo,
 } from "@fortawesome/free-solid-svg-icons";
 import {
 	faDiscord,
