@@ -9,7 +9,7 @@ const showModal = ref<string | null>(null);
 	<main>
 		<NuxtImg
 			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			src="GoopBGTransparent.png"
+			:src="$ContentImage('/GoopBGTransparent.png')"
 		></NuxtImg>
 		<div class="flex flex-col justify-center items-center h-dvh">
 			<div
