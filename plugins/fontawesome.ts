@@ -5,6 +5,7 @@ import {
 	faDownload,
 	faXmark,
 	faChevronDown,
+	faInfo
 } from "@fortawesome/free-solid-svg-icons";
 import {
 	faDiscord,
@@ -27,7 +28,8 @@ library.add(
 	faTwitter,
 	faSpotify,
 	faXmark,
-	faChevronDown
+	faChevronDown,
+	faInfo
 );
 
 export default defineNuxtPlugin(nuxtApp => {
