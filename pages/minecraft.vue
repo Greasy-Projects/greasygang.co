@@ -26,7 +26,11 @@ const isCurseForgeModalOpen = ref(false);
 						<div
 							class="mc-button mc-font size-11 bg-cover bg-center"
 							:style="$BGContentImage('minecraft/button.png')"
-							@click="file.includes('prism') ? isPrismModalOpen = true : isCurseForgeModalOpen = true;"
+							@click="
+								file.includes('prism')
+									? (isPrismModalOpen = true)
+									: (isCurseForgeModalOpen = true)
+							"
 						>
 							<div class="h-full title flex justify-center items-center">
 								<FontAwesomeIcon :icon="['fas', 'info']" class="size-4" />
@@ -57,18 +61,14 @@ const isCurseForgeModalOpen = ref(false);
 
 		<!-- Prism Modal -->
 		<Transition>
-			<div
-				v-if="isPrismModalOpen"
-				class="mc-font relative z-10 transition-all"
-
-			>
+			<div v-if="isPrismModalOpen" class="mc-font relative z-10 transition-all">
 				<div
 					class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"
 				></div>
 
 				<div class="fixed inset-0 flex items-center justify-center">
 					<div
-						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900" 
+						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900"
 						aria-labelledby="modal-title"
 						role="dialog"
 						aria-modal="true"
@@ -104,36 +104,35 @@ const isCurseForgeModalOpen = ref(false);
 							<br />
 
 							<p>
-										1. Download and install Prism from
-										<a
-											class="underline hover:text-gray-300"
-											href="https://prismlauncher.org"
-											>prismlauncher.org</a
-										><br />
-										2. Log in to Prism with your Microsoft account.<br />
-										3. Drag and drop the downloaded ZIP file
-										<a
-											class="text-[#5555FF]"
-											href="https://cdn.greasygang.co/greasycraft/prism.zip"
-											>(Prism.zip)</a
-										>
-										onto the main window.<br />
-										4. Launch the modpack by double clicking the GreasyCraft
-										icon or clicking the GreasyCraft icon and then pressing
-										Launch on the right sidebar.
-									</p>
+								1. Download and install Prism from
+								<a
+									class="underline hover:text-gray-300"
+									href="https://prismlauncher.org"
+									>prismlauncher.org</a
+								><br />
+								2. Log in to Prism with your Microsoft account.<br />
+								3. Drag and drop the downloaded ZIP file
+								<a
+									class="text-[#5555FF]"
+									href="https://cdn.greasygang.co/greasycraft/prism.zip"
+									>(Prism.zip)</a
+								>
+								onto the main window.<br />
+								4. Launch the modpack by double clicking the GreasyCraft icon or
+								clicking the GreasyCraft icon and then pressing Launch on the
+								right sidebar.
+							</p>
 						</div>
 					</div>
 				</div>
 			</div>
 		</Transition>
-		
+
 		<!-- CurseForge Modal -->
 		<Transition>
 			<div
 				v-if="isCurseForgeModalOpen"
 				class="mc-font relative z-10 transition-all"
-
 			>
 				<div
 					class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"
@@ -141,7 +140,7 @@ const isCurseForgeModalOpen = ref(false);
 
 				<div class="fixed inset-0 flex items-center justify-center">
 					<div
-						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900" 
+						class="bg-repeat p-6 rounded-lg lg:w-2/6 md:w-1/2 w-full md:mx-0 mx-4 border-solid border-3 border-white shadow-inner shadow-gray-900"
 						aria-labelledby="modal-title"
 						role="dialog"
 						aria-modal="true"
@@ -177,27 +176,27 @@ const isCurseForgeModalOpen = ref(false);
 							<br />
 
 							<p>
-										1. Download and install Curseforge from
-										<a
-											class="underline hover:text-gray-300"
-											href="https://www.curseforge.com"
-											>curseforge.com</a
-										><br />
-										2. Click "Minecraft" (it may need to install)<br />
-										3. In the Minecraft tab, click Create Custom Profile in the top
-										right.<br />
-										4. Click "Import"<br />
-										5. Browse to the downloaded file
-										<a
-											class="text-[#5555FF]"
-											href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
-											>(CurseForge.zip)</a
-										><br />
-										6. After it's done initializing, launch the modpack.<br />
-										7. Log into the Minecraft launcher with your Microsoft account if
-										it isn't already<br />
-										8. Click Play.
-									</p>
+								1. Download and install Curseforge from
+								<a
+									class="underline hover:text-gray-300"
+									href="https://www.curseforge.com"
+									>curseforge.com</a
+								><br />
+								2. Click "Minecraft" (it may need to install)<br />
+								3. In the Minecraft tab, click Create Custom Profile in the top
+								right.<br />
+								4. Click "Import"<br />
+								5. Browse to the downloaded file
+								<a
+									class="text-[#5555FF]"
+									href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
+									>(CurseForge.zip)</a
+								><br />
+								6. After it's done initializing, launch the modpack.<br />
+								7. Log into the Minecraft launcher with your Microsoft account
+								if it isn't already<br />
+								8. Click Play.
+							</p>
 						</div>
 					</div>
 				</div>

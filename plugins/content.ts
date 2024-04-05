@@ -12,7 +12,12 @@ export default defineNuxtPlugin(() => {
 				const imgUrl = img($ContentImage(path), { width, height });
 				return { backgroundImage: `url('${imgUrl}')` };
 			},
-			BGContentImageDarken: (path: string, width?: number, height?: number, darken?: number) => {
+			BGContentImageDarken: (
+				path: string,
+				width?: number,
+				height?: number,
+				darken?: number
+			) => {
 				const img = useImage();
 				const { $ContentImage } = useNuxtApp();
 
@@ -20,7 +25,7 @@ export default defineNuxtPlugin(() => {
 				return {
 					backgroundImage: `linear-gradient(rgba(0, 0, 0, ${darken ?? 0.5}), rgba(0, 0, 0, ${darken ?? 0.5})), url('${imgUrl}')`,
 				};
-			}
+			},
 		},
 	};
 });
