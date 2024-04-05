@@ -92,14 +92,14 @@ const showModal = ref<string | null>(null);
 							<div class="mt-4 text-sm text-white">
 								<p v-if="showModal === 'curseforge.zip'">
 									1. Download and install Curseforge from
-									<a href="https://www.curseforge.com">curseforge.com</a><br />
+									<a href="https://www.curseforge.com/download/app">curseforge.com</a><br />
 									2. Click "Minecraft" (it may need to install)<br />
 									3. In the Minecraft tab, click Create Custom Profile in the
 									top right.<br />
 									4. Click "Import"<br />
-									5. Browse to the downloaded file
+									5. Select
 									<a href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
-										>(CurseForge.zip)</a
+										>CurseForge.zip</a
 									><br />
 									6. After it's done initializing, launch the modpack.<br />
 									7. Log into the Minecraft launcher with your Microsoft account
@@ -108,16 +108,16 @@ const showModal = ref<string | null>(null);
 								</p>
 								<p v-if="showModal === 'prism.zip'">
 									1. Download and install Prism from
-									<a href="https://prismlauncher.org">prismlauncher.org</a
+									<a href="prismlauncher.org/download/">prismlauncher.org</a
 									><br />
 									2. Log in to Prism with your Microsoft account.<br />
-									3. Drag and drop the downloaded ZIP file
+									3. Drag and drop
 									<a href="https://cdn.greasygang.co/greasycraft/prism.zip"
-										>(Prism.zip)</a
+										>Prism.zip</a
 									>
 									onto the main window.<br />
 									4. Launch the modpack by double clicking the GreasyCraft icon
-									or clicking the GreasyCraft icon and then pressing Launch on
+									or by clicking the GreasyCraft icon and then pressing Launch on
 									the right sidebar.
 								</p>
 							</div>
