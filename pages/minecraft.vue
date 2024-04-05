@@ -1,7 +1,10 @@
 <script setup lang="ts">
 const downloadURL = "https://cdn.greasygang.co/greasycraft/";
-const files = ["curseforge.zip", "prism.zip", "modrinth.mrpack	"];
+const files = ["curseforge.zip", "prism.zip"];
+
+const showModal = ref<string | null>(null);
 </script>
+
 <template>
 	<main>
 		<NuxtImg
@@ -17,36 +20,146 @@ const files = ["curseforge.zip", "prism.zip", "modrinth.mrpack	"];
 					class="w-full overflow-hidden object-cover"
 					:src="$ContentImage('minecraft/greasycraft.png')"
 				></NuxtImg>
-				<NuxtLink
-					v-for="file in files"
-					:key="file"
-					:href="downloadURL + file"
-					:style="$BGContentImage('minecraft/button.png')"
-					class="mc-button bg-cover bg-center"
-				>
-					<div class="relative title flex h-10 justify-center items-center">
+				<div class="space-y-2">
+					<div v-for="file in files" :key="file" class="gap-2 flex">
 						<div
-							class="font-600 h-full flex justify-center w-full items-center text-lg tracking-widest uppercase"
+							class="mc-button mc-font size-11 bg-cover bg-center"
+							:style="$BGContentImage('minecraft/button.png')"
+							@click="showModal = file"
 						>
-							{{ file }}
+							<div class="h-full title flex justify-center items-center">
+								<FontAwesomeIcon :icon="['fas', 'info']" class="size-4" />
+							</div>
 						</div>
-						<FontAwesomeIcon
-							:icon="['fas', 'download']"
-							class="size-5 absolute right-2.5"
-						/>
+						<NuxtLink
+							:href="downloadURL + file"
+							download
+							class="mc-button mc-font w-90% bg-cover bg-center"
+							:style="$BGContentImage('minecraft/button.png')"
+						>
+							<div class="relative title flex h-10 justify-center items-center">
+								<div
+									class="font-600 h-full flex justify-center w-full items-center text-lg tracking-widest uppercase"
+								>
+									{{ file }}
+								</div>
+								<FontAwesomeIcon
+									:icon="['fas', 'download']"
+									class="size-5 absolute right-2.5"
+								/>
+							</div>
+						</NuxtLink>
 					</div>
-				</NuxtLink>
+				</div>
 			</div>
 		</div>
+
+		<!-- Prism Modal -->
+		<Transition>
+			<div
+				v-if="showModal"
+				class="fixed inset-0 h-dvh flex justify-center items-center"
+			>
+				<div
+					class="absolute w-full h-100vh bg-gray-900 bg-opacity-50 transition-opacity"
+					@click="showModal = null"
+				></div>
+				<div class="mc-font mc-modal max-w-lg z-10 transition-all">
+					<div class="flex items-center justify-center">
+						<div
+							class="bg-repeat p-6 rounded-lg border-solid border-3 border-white shadow-inner shadow-gray-900"
+							aria-labelledby="modal-title"
+							role="dialog"
+							aria-modal="true"
+							:style="
+								$BGContentImage('minecraft/dirt.png', 100, 100, {
+									darken: 0.3,
+								})
+							"
+						>
+							<div class="flex justify-between items-center">
+								<h2 id="modal-title" class="text-lg font-medium text-white">
+									Install instructions
+								</h2>
+								<button class="text-white hover:text-gray-300 bg-transparent">
+									<FontAwesomeIcon
+										:icon="['fas', 'xmark']"
+										class="h-5 w-5 my-auto"
+										@click="showModal = null"
+									/>
+								</button>
+							</div>
+							<div class="mt-4 text-sm text-white">
+								<p v-if="showModal === 'curseforge.zip'">
+									1. Download and install Curseforge from
+									<a href="https://www.curseforge.com">curseforge.com</a><br />
+									2. Click "Minecraft" (it may need to install)<br />
+									3. In the Minecraft tab, click Create Custom Profile in the
+									top right.<br />
+									4. Click "Import"<br />
+									5. Browse to the downloaded file
+									<a href="https://cdn.greasygang.co/greasycraft/curseforge.zip"
+										>(CurseForge.zip)</a
+									><br />
+									6. After it's done initializing, launch the modpack.<br />
+									7. Log into the Minecraft launcher with your Microsoft account
+									if it isn't already<br />
+									8. Click Play.
+								</p>
+								<p v-if="showModal === 'prism.zip'">
+									1. Download and install Prism from
+									<a href="https://prismlauncher.org">prismlauncher.org</a
+									><br />
+									2. Log in to Prism with your Microsoft account.<br />
+									3. Drag and drop the downloaded ZIP file
+									<a href="https://cdn.greasygang.co/greasycraft/prism.zip"
+										>(Prism.zip)</a
+									>
+									onto the main window.<br />
+									4. Launch the modpack by double clicking the GreasyCraft icon
+									or clicking the GreasyCraft icon and then pressing Launch on
+									the right sidebar.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</Transition>
 	</main>
 </template>
+
 <style>
+.mc-modal {
+	a {
+		color: #55ffff;
+		font-weight: 700;
+		&:hover {
+			color: #32d1c4;
+		}
+	}
+}
+.v-enter-active,
+.v-leave-active {
+	transition: opacity 0.5s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+	opacity: 0;
+}
 @font-face {
 	font-family: "Minecraft";
 	src: url("https://cdn.greasygang.co/fonts/minecraft.woff") format("woff");
 }
-.mc-button {
+
+.mc-font {
 	font-family: "Minecraft";
+	color: #ddd;
+	text-shadow: 2px 2px #000a;
+}
+
+.mc-button {
 	cursor: pointer;
 	overflow: hidden;
 	white-space: nowrap;
@@ -75,43 +188,8 @@ const files = ["curseforge.zip", "prism.zip", "modrinth.mrpack	"];
 			inset -2px -4px #0006,
 			inset 2px 2px #fff7;
 	}
-}
-.mcbutton {
-	&::before {
-		content: "";
-		position: absolute;
-		background-color: #e75d20;
-		height: 5px;
-		width: 100%;
-		bottom: 100%;
-		left: 0;
-	}
-	&::after {
-		content: "";
-		position: absolute;
-		background-color: #9b3101;
-		height: 5px;
-		width: 100%;
-		top: 100%;
-		left: 0;
-	}
-	span::before {
-		content: "";
-		position: absolute;
-		background-color: #9b3101;
-		height: 100%;
-		width: 4px;
-		left: 100%;
-		top: 0;
-	}
-	span::after {
-		content: "";
-		position: absolute;
-		background-color: #9b3101;
-		height: 100%;
-		width: 4px;
-		top: 0;
-		right: 100%;
+	.title > svg {
+		filter: drop-shadow(2px 2px #000a);
 	}
 }
 </style>
