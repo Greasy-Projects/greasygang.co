@@ -32,7 +32,7 @@ const navs: { name: string; path: string }[] = [
 		<nav
 			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
 		>
-			<NuxtImg src="/gg.png" class="size-11"></NuxtImg>
+			<NuxtImg :src="$ContentImage('/gg.png')" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">
 				<NuxtLink
 					v-for="nav in navs"

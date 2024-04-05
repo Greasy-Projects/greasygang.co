@@ -59,7 +59,7 @@ try {
 	>
 		<NuxtImg
 			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			src="GoopBGTransparent.png"
+			:src="$ContentImage('/GoopBGTransparent.png')"
 		></NuxtImg>
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
 			<div
@@ -122,7 +122,7 @@ try {
 					}"
 				>
 					<NuxtImg
-						src="/mac/babe.png"
+					:src="$ContentImage('/mac/babe.png')"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>
 				</div>
