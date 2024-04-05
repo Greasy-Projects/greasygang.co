@@ -57,7 +57,7 @@ const navs: { name: string; path: string }[] = [
 				<NuxtImg
 					v-if="user"
 					:src="user.me.avatar"
-					class="size-11"
+					class="size-11 rounded-full"
 					@click="logout"
 				></NuxtImg>
 			</div>
