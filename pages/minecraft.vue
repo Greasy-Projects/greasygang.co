@@ -13,7 +13,7 @@ const showModal = ref<string | null>(null);
 		></NuxtImg>
 		<div class="flex flex-col justify-center items-center h-dvh">
 			<div
-				class="flex flex-col space-y-4 w-lg p-6 justify-between rounded-xl"
+				class="flex flex-col space-y-4 w-90vw max-w-lg p-6 justify-between rounded-xl"
 				:style="$BGContentImage('minecraft/background.png')"
 			>
 				<NuxtImg
@@ -39,13 +39,13 @@ const showModal = ref<string | null>(null);
 						>
 							<div class="relative title flex h-10 justify-center items-center">
 								<div
-									class="font-600 h-full flex justify-center w-full items-center text-lg tracking-widest uppercase"
+									class="font-600 h-full flex justify-center w-full items-center text-[clamp(0rem,4vw,1.125rem)] sm:text-lg tracking-widest uppercase"
 								>
 									{{ file }}
 								</div>
 								<FontAwesomeIcon
 									:icon="['fas', 'download']"
-									class="size-5 absolute right-2.5"
+									class="size-4 sm:size-5  absolute right-2.5"
 								/>
 							</div>
 						</NuxtLink>
@@ -67,7 +67,7 @@ const showModal = ref<string | null>(null);
 				<div class="mc-font mc-modal max-w-lg z-10 transition-all">
 					<div class="flex items-center justify-center">
 						<div
-							class="bg-repeat p-6 rounded-lg border-solid border-3 border-white shadow-inner shadow-gray-900"
+							class="bg-repeat m-5 p-6 rounded-lg border-solid border-3 border-white shadow-inner shadow-gray-900"
 							aria-labelledby="modal-title"
 							role="dialog"
 							aria-modal="true"
