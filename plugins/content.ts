@@ -1,11 +1,17 @@
 export default defineNuxtPlugin(() => {
 	const config = useRuntimeConfig().public;
+	const img = useImage();
 
 	return {
 		provide: {
 			ogTitle: (title?: string) => `GreasyGang ${title ? " - " + title : ""}`,
 			ContentImage: (path: string) =>
 				`${config.apiBase}/image/${config.branch}/website/images/${path}`,
+			PreContentImage: (path: string, width?: number, height?: number) => {
+				const { $ContentImage } = useNuxtApp();
+
+				return img($ContentImage(path), { width, height });
+			},
 			BGContentImage: (
 				path: string,
 				width?: number,
@@ -14,7 +20,6 @@ export default defineNuxtPlugin(() => {
 					darken: number | boolean;
 				}
 			) => {
-				const img = useImage();
 				const { $ContentImage } = useNuxtApp();
 
 				const imgUrl = img($ContentImage(path), { width, height });

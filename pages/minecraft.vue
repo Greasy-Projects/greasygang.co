@@ -1,13 +1,20 @@
 <script setup lang="ts">
-const { $ContentImage, $ogTitle } = useNuxtApp();
+const { $ContentImage, $ogTitle, $PreContentImage } = useNuxtApp();
 useHead({
 	title: "GreasyCraft",
+	link: [
+		{
+			rel: "preload",
+			as: "image",
+			href: $PreContentImage("minecraft/dirt.png", 100, 100),
+		},
+	],
 });
 useSeoMeta({
 	ogTitle: $ogTitle("GreasyCraft"),
 	ogDescription: "Downloads and setup instructions for the GreasyCraft Modpack",
 	twitterCard: "summary_large_image",
-	ogImage: $ContentImage("/minecraft/greasycraft.png"),
+	ogImage: $ContentImage("minecraft/greasycraft.png"),
 });
 
 const downloadURL = "https://cdn.greasygang.co/greasycraft/";
@@ -20,7 +27,7 @@ const showModal = ref<string | null>(null);
 	<main>
 		<NuxtImg
 			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			:src="$ContentImage('/GoopBGTransparent.png')"
+			:src="$ContentImage('GoopBGTransparent.png')"
 		></NuxtImg>
 		<div class="flex flex-col justify-center items-center h-dvh">
 			<div
