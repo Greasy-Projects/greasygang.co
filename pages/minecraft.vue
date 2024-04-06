@@ -1,4 +1,15 @@
 <script setup lang="ts">
+const { $ContentImage, $ogTitle } = useNuxtApp();
+useHead({
+	title: "GreasyCraft",
+});
+useSeoMeta({
+	ogTitle: $ogTitle("GreasyCraft"),
+	ogDescription: "Downloads and setup instructions for the GreasyCraft Modpack",
+	twitterCard: "summary_large_image",
+	ogImage: $ContentImage("/minecraft/greasycraft.png"),
+});
+
 const downloadURL = "https://cdn.greasygang.co/greasycraft/";
 const files = ["curseforge.zip", "prism.zip"];
 
@@ -45,7 +56,7 @@ const showModal = ref<string | null>(null);
 								</div>
 								<FontAwesomeIcon
 									:icon="['fas', 'download']"
-									class="size-4 sm:size-5  absolute right-2.5"
+									class="size-4 sm:size-5 absolute right-2.5"
 								/>
 							</div>
 						</NuxtLink>
@@ -92,7 +103,9 @@ const showModal = ref<string | null>(null);
 							<div class="mt-4 text-sm text-white">
 								<p v-if="showModal === 'curseforge.zip'">
 									1. Download and install Curseforge from
-									<a href="https://www.curseforge.com/download/app">curseforge.com</a><br />
+									<a href="https://www.curseforge.com/download/app"
+										>curseforge.com</a
+									><br />
 									2. Click "Minecraft" (it may need to install)<br />
 									3. In the Minecraft tab, click Create Custom Profile in the
 									top right.<br />
@@ -117,8 +130,8 @@ const showModal = ref<string | null>(null);
 									>
 									onto the main window.<br />
 									4. Launch the modpack by double clicking the GreasyCraft icon
-									or by clicking the GreasyCraft icon and then pressing Launch on
-									the right sidebar.
+									or by clicking the GreasyCraft icon and then pressing Launch
+									on the right sidebar.
 								</p>
 							</div>
 						</div>

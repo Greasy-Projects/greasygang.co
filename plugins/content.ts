@@ -3,6 +3,7 @@ export default defineNuxtPlugin(() => {
 
 	return {
 		provide: {
+			ogTitle: (title?: string) => `GreasyGang ${title ? " - " + title : ""}`,
 			ContentImage: (path: string) =>
 				`${config.apiBase}/image/${config.branch}/website/images/${path}`,
 			BGContentImage: (
