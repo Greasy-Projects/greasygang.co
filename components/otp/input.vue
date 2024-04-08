@@ -34,6 +34,7 @@ export default /* #__PURE__ */ defineComponent({
 			type: String as PropType<
 				"number" | "tel" | "letter-numeric" | "password"
 			>,
+			default: "number",
 			validator: (value: string) =>
 				["number", "tel", "letter-numeric", "password"].includes(value),
 		},
@@ -54,7 +55,7 @@ export default /* #__PURE__ */ defineComponent({
 			>,
 			validator: (value: string) =>
 				["numeric", "text", "tel", "none"].includes(value),
-			default: "text",
+			default: "numeric",
 		},
 		shouldAutoFocus: {
 			type: Boolean,
@@ -258,7 +259,6 @@ export default /* #__PURE__ */ defineComponent({
 
 <template>
 	<div style="display: flex" class="otp-input-container">
-		<!--    To turn off autocomplete when otp-input is password-->
 		<input
 			v-if="inputType === 'password'"
 			autocomplete="off"
