@@ -170,9 +170,9 @@ const user = useUser();
 									/>
 								</button>
 							</div>
-							<div class="mt-4 text-sm w-min text-white">
+							<div class="mt-4 text-sm text-white">
 								<div v-if="showModal === wlHash">
-									<div v-if="user" class="space-y-2">
+									<div v-if="user" class="space-y-2 w-min">
 										<OtpInput
 											ref="otpInput"
 											v-model:value="bindModal"
