@@ -41,7 +41,7 @@ const navs: { name: string; path: string }[] = [
 					:key="nav.path"
 					:href="nav.path"
 					:class="{ underline: nav.path === route.fullPath }"
-					class="text-white hover:text-gray-100 text-xl underline-offset-6"
+					class="text-gray-300 hover:text-gray-200 text-xl underline-offset-6"
 					>{{ nav.name }}</NuxtLink
 				>
 			</div>
@@ -64,7 +64,7 @@ const navs: { name: string; path: string }[] = [
 				></NuxtImg>
 			</div>
 		</nav>
-		<NuxtPage />
+		<NuxtPage :user="user" />
 	</div>
 </template>
 <style>
