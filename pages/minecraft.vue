@@ -153,7 +153,7 @@ const user = useUser();
 									id="modal-title"
 									class="text-lg font-medium text-white"
 								>
-									Input the provided code
+									{{user ? "Enter your whitelist code" : "Please login to continue"}}
 								</h2>
 								<h2
 									v-else
