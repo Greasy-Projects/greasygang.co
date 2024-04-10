@@ -219,7 +219,9 @@ const user = useUser();
 								</div>
 								<p v-if="showModal === 'curseforge.zip'">
 									1. Download and install Curseforge from
-									<a href="https://www.curseforge.com/download/app"
+									<a
+										target="_blank"
+										href="https://www.curseforge.com/download/app"
 										>curseforge.com</a
 									><br />
 									2. Click "Minecraft" (it may need to install)<br />
@@ -237,7 +239,8 @@ const user = useUser();
 								</p>
 								<p v-if="showModal === 'prism.zip'">
 									1. Download and install Prism from
-									<a href="prismlauncher.org/download/">prismlauncher.org</a
+									<a target="_blank" href="prismlauncher.org/download/"
+										>prismlauncher.org</a
 									><br />
 									2. Log in to Prism with your Microsoft account.<br />
 									3. Drag and drop
