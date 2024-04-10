@@ -122,7 +122,7 @@ try {
 					}"
 				>
 					<NuxtImg
-					:src="$ContentImage('/mac/babe.png')"
+						:src="$ContentImage('/mac/babe.png')"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>
 				</div>
