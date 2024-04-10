@@ -166,7 +166,7 @@ const user = useUser();
 											? whitelistStatus
 												? "You're already whitelisted!"
 												: "Enter your whitelist code"
-											: "Please login to continue"
+											: "Whitelist"
 									}}
 								</h2>
 								<h2
@@ -198,24 +198,28 @@ const user = useUser();
 										/>
 										<p>
 											<span class="text-gray"
-												>Your minecraft account will be linked to your twitch
+												>Your Minecraft account will be linked to your Twitch
 												account: </span
 											>{{ user.me.displayName }}
 										</p>
 									</div>
-									<NuxtLink
-										v-else
-										class="mc-button mc-font flex h-10 justify-center items-center bg-cover bg-center"
-										:to="$login()"
-										external
-										:style="$BGContentImage('minecraft/button.png')"
-									>
-										<div
-											class="title size-full text-lg flex justify-center items-center"
+									<div v-else class="space-y-2">
+										<p class="text-gray">
+											Please login with your Twitch account to continue.
+										</p>
+										<NuxtLink
+											class="mc-button mc-font flex h-10 justify-center items-center bg-cover bg-center"
+											:to="$login()"
+											external
+											:style="$BGContentImage('minecraft/button.png')"
 										>
-											Login
-										</div>
-									</NuxtLink>
+											<div
+												class="title size-full text-lg flex justify-center items-center"
+											>
+												Login
+											</div>
+										</NuxtLink>
+									</div>
 								</div>
 								<p v-if="showModal === 'curseforge.zip'">
 									1. Download and install Curseforge from
