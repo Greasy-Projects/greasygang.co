@@ -1,14 +1,7 @@
 <script lang="ts">
 import SingleOtpInput from "./single.vue";
 
-// keyCode constants
-const BACKSPACE = 8;
-const LEFT_ARROW = 37;
-const RIGHT_ARROW = 39;
-const DELETE = 46;
-
-export default /* #__PURE__ */ defineComponent({
-	name: "Vue3OtpInput", // vue component name
+export default defineComponent({
 	components: {
 		SingleOtpInput,
 	},
@@ -125,9 +118,7 @@ export default /* #__PURE__ */ defineComponent({
 		const changeCodeAtFocus = (value: number | string) => {
 			oldOtp.value = Object.assign([], otp.value);
 
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-			// @ts-ignore
-			otp.value[activeInput.value] = value;
+			otp.value[activeInput.value] = String(value);
 
 			if (oldOtp.value.join("") !== otp.value.join("")) {
 				emit("update:value", otp.value.join(""));
@@ -191,26 +182,29 @@ export default /* #__PURE__ */ defineComponent({
 
 		// Handle cases of backspace, delete, left arrow, right arrow
 		const handleOnKeyDown = (event: KeyboardEvent, index: number) => {
-			switch (event.keyCode) {
-				case BACKSPACE:
+			console.log(event.code);
+			switch (event.code) {
+				case "Backspace":
 					event.preventDefault();
-					changeCodeAtFocus("");
+
 					focusPrevInput();
-					break;
-				case DELETE:
-					event.preventDefault();
 					changeCodeAtFocus("");
 					break;
-				case LEFT_ARROW:
+				case "Delete":
+					event.preventDefault();
+					changeCodeAtFocus("");
+					break;
+				case "ArrowLeft":
 					event.preventDefault();
 					focusPrevInput();
 					break;
-				case RIGHT_ARROW:
+				case "ArrowRight":
 					event.preventDefault();
 					focusNextInput();
 					break;
 				default:
 					focusOrder(index);
+					checkFilledAllInputs();
 					break;
 			}
 		};
@@ -226,13 +220,11 @@ export default /* #__PURE__ */ defineComponent({
 		 */
 		const focusOrder = (currentIndex: number) => {
 			if (props.shouldFocusOrder) {
-				setTimeout(() => {
-					const len = otp.value.join("").length;
-					if (currentIndex - len >= 0) {
-						activeInput.value = len;
-						otp.value[currentIndex] = "";
-					}
-				}, 100);
+				const len = otp.value.join("").length;
+				if (currentIndex - len >= 0) {
+					activeInput.value = len;
+					otp.value[currentIndex] = "";
+				}
 			}
 		};
 
@@ -287,5 +279,3 @@ export default /* #__PURE__ */ defineComponent({
 		/>
 	</div>
 </template>
-
-<style scoped></style>

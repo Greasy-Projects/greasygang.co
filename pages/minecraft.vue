@@ -289,6 +289,8 @@ input {
 }
 input:focus-visible {
 	outline: 0;
+	border: 3px solid white;
+	color: #ffffa0;
 }
 
 .otp-input::-webkit-inner-spin-button,
