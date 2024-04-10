@@ -182,7 +182,6 @@ export default defineComponent({
 
 		// Handle cases of backspace, delete, left arrow, right arrow
 		const handleOnKeyDown = (event: KeyboardEvent, index: number) => {
-			console.log(event.code);
 			switch (event.code) {
 				case "Backspace":
 					event.preventDefault();

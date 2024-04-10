@@ -40,7 +40,6 @@ const otpInput = ref<InstanceType<typeof OtpInput> | null>(null);
 const bindModal = ref("");
 
 async function handleOnComplete(value: string) {
-	console.log("OTP completed: ", value);
 	setTimeout(() => {
 		otpInput.value?.clearInput();
 	}, 100);
@@ -58,9 +57,6 @@ async function handleOnComplete(value: string) {
 		push.error((e as any).gqlErrors[0].message);
 	}
 }
-const change = (value: string) => {
-	console.log("OTP change: ", value);
-};
 
 const user = useUser();
 </script>
@@ -198,7 +194,6 @@ const user = useUser();
 											:num-inputs="6"
 											:should-auto-focus="true"
 											:should-focus-order="true"
-											@on-change="change"
 											@on-complete="handleOnComplete"
 										/>
 										<p>
