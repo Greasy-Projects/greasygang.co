@@ -137,7 +137,6 @@ const user = useUser();
 			</div>
 		</div>
 
-		<!-- Prism Modal -->
 		<Transition name="modal">
 			<div
 				v-if="showModal"
