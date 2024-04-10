@@ -243,7 +243,7 @@ const user = useUser();
 								</p>
 								<p v-if="showModal === 'prism.zip'">
 									1. Download and install Prism from
-									<a target="_blank" href="prismlauncher.org/download/"
+									<a target="_blank" href="https://prismlauncher.org/download/"
 										>prismlauncher.org</a
 									><br />
 									2. Log in to Prism with your Microsoft account.<br />
