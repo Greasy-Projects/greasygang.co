@@ -79,7 +79,7 @@ try {
 						>
 						</NuxtImg>
 						<div
-v-if="sponsor.code"
+							v-if="sponsor.code"
 							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
 						>
 							Use code&nbsp;<span class="font-700 color-white">{{
