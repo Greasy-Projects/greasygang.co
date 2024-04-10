@@ -4,3 +4,7 @@ mutation whitelistLink($code: Int!) {
 		message
 	}
 }
+
+query checkWhitelistStatus {
+	checkWhitelist
+}

@@ -22,13 +22,16 @@ const files = ["curseforge.zip", "prism.zip"];
 
 const showModal = ref<string | null>(null);
 const route = useRoute();
+const router = useRouter();
 const wlHash = "#wl";
+const whitelistStatus = ref(false);
 if (route.hash === wlHash) {
 	useSeoMeta({
 		ogTitle: $ogTitle("GreasyCraft"),
 		ogDescription: "Get whitelisted on the GreasyCraft SMP",
 	});
 	showModal.value = route.hash;
+	whitelistStatus.value = (await GqlCheckWhitelistStatus()).checkWhitelist;
 }
 import OtpInput from "@/components/otp/input.vue";
 
@@ -44,9 +47,12 @@ async function handleOnComplete(value: string) {
 		const res = await GqlWhitelistLink({
 			code: Number(value),
 		});
-		if (res.whitelistLink.status === 200)
+		if (res.whitelistLink.status === 200) {
 			push.success(res.whitelistLink.message);
-		else push.error(res.whitelistLink.message);
+			whitelistStatus.value = true;
+			showModal.value = null;
+			router.push(route.path);
+		} else push.error(res.whitelistLink.message);
 	} catch (e) {
 		push.error((e as any).gqlErrors[0].message);
 	}
@@ -161,7 +167,9 @@ const user = useUser();
 								>
 									{{
 										user
-											? "Enter your whitelist code"
+											? whitelistStatus
+												? "You're already whitelisted!"
+												: "Enter your whitelist code"
 											: "Please login to continue"
 									}}
 								</h2>
@@ -181,7 +189,7 @@ const user = useUser();
 								</button>
 							</div>
 							<div class="mt-4 text-sm text-white">
-								<div v-if="showModal === wlHash">
+								<div v-if="showModal === wlHash && !whitelistStatus">
 									<div v-if="user" class="space-y-2 w-min">
 										<OtpInput
 											ref="otpInput"
