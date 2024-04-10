@@ -31,7 +31,8 @@ if (route.hash === wlHash) {
 		ogDescription: "Get whitelisted on the GreasyCraft SMP",
 	});
 	showModal.value = route.hash;
-	whitelistStatus.value = (await GqlCheckWhitelistStatus()).checkWhitelist;
+	whitelistStatus.value =
+		(await GqlCheckWhitelistStatus().catch(() => {}))?.checkWhitelist ?? false;
 }
 import OtpInput from "@/components/otp/input.vue";
 
