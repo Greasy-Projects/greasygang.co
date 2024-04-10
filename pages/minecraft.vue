@@ -21,6 +21,44 @@ const downloadURL = "https://cdn.greasygang.co/greasycraft/";
 const files = ["curseforge.zip", "prism.zip"];
 
 const showModal = ref<string | null>(null);
+const route = useRoute();
+const router = useRouter();
+const wlHash = "#wl";
+const whitelistStatus = ref(false);
+if (route.hash === wlHash) {
+	useSeoMeta({
+		ogTitle: $ogTitle("GreasyCraft"),
+		ogDescription: "Get whitelisted on the GreasyCraft SMP",
+	});
+	showModal.value = route.hash;
+	whitelistStatus.value =
+		(await GqlCheckWhitelistStatus().catch(() => {}))?.checkWhitelist ?? false;
+}
+import OtpInput from "@/components/otp/input.vue";
+
+const otpInput = ref<InstanceType<typeof OtpInput> | null>(null);
+const bindModal = ref("");
+
+async function handleOnComplete(value: string) {
+	setTimeout(() => {
+		otpInput.value?.clearInput();
+	}, 100);
+	try {
+		const res = await GqlWhitelistLink({
+			code: Number(value),
+		});
+		if (res.whitelistLink.status === 200) {
+			push.success(res.whitelistLink.message);
+			whitelistStatus.value = true;
+			showModal.value = null;
+			router.push(route.path);
+		} else push.error(res.whitelistLink.message);
+	} catch (e) {
+		push.error((e as any).gqlErrors[0].message);
+	}
+}
+
+const user = useUser();
 </script>
 
 <template>
@@ -29,6 +67,7 @@ const showModal = ref<string | null>(null);
 			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
 			:src="$ContentImage('GoopBGTransparent.png')"
 		></NuxtImg>
+
 		<div class="flex flex-col justify-center items-center h-dvh">
 			<div
 				class="flex flex-col space-y-4 w-90vw max-w-lg p-6 justify-between rounded-xl"
@@ -68,12 +107,33 @@ const showModal = ref<string | null>(null);
 							</div>
 						</NuxtLink>
 					</div>
+					<div
+						:class="{
+							'h-11': $route.hash === wlHash && showModal !== wlHash,
+						}"
+						class="h-0 transition-height"
+					>
+						<Transition>
+							<div
+								v-if="$route.hash === wlHash && showModal !== wlHash"
+								key="whitelist"
+								class="mc-button mc-font size-full bg-cover bg-center"
+								:style="$BGContentImage('minecraft/button.png')"
+								@click="showModal = wlHash"
+							>
+								<div
+									class="h-full title font-600 text-[clamp(0rem,4vw,1.125rem)] sm:text-lg flex justify-center items-center"
+								>
+									GET WHITELISTED
+								</div>
+							</div>
+						</Transition>
+					</div>
 				</div>
 			</div>
 		</div>
 
-		<!-- Prism Modal -->
-		<Transition>
+		<Transition name="modal">
 			<div
 				v-if="showModal"
 				class="fixed inset-0 h-dvh flex justify-center items-center"
@@ -96,7 +156,24 @@ const showModal = ref<string | null>(null);
 							"
 						>
 							<div class="flex justify-between items-center">
-								<h2 id="modal-title" class="text-lg font-medium text-white">
+								<h2
+									v-if="showModal === wlHash"
+									id="modal-title"
+									class="text-lg font-medium text-white"
+								>
+									{{
+										user
+											? whitelistStatus
+												? "You're already whitelisted!"
+												: "Enter your whitelist code"
+											: "Whitelist"
+									}}
+								</h2>
+								<h2
+									v-else
+									id="modal-title"
+									class="text-lg font-medium text-white"
+								>
 									Install instructions
 								</h2>
 								<button class="text-white hover:text-gray-300 bg-transparent">
@@ -108,9 +185,47 @@ const showModal = ref<string | null>(null);
 								</button>
 							</div>
 							<div class="mt-4 text-sm text-white">
+								<div v-if="showModal === wlHash && !whitelistStatus">
+									<div v-if="user" class="space-y-2 w-min">
+										<OtpInput
+											ref="otpInput"
+											v-model:value="bindModal"
+											input-classes="otp-input"
+											:num-inputs="6"
+											:should-auto-focus="true"
+											:should-focus-order="true"
+											@on-complete="handleOnComplete"
+										/>
+										<p>
+											<span class="text-gray"
+												>Your Minecraft account will be linked to your Twitch
+												account: </span
+											>{{ user.me.displayName }}
+										</p>
+									</div>
+									<div v-else class="space-y-2">
+										<p class="text-gray">
+											Please login with your Twitch account to continue.
+										</p>
+										<NuxtLink
+											class="mc-button mc-font flex h-10 justify-center items-center bg-cover bg-center"
+											:to="$login()"
+											external
+											:style="$BGContentImage('minecraft/button.png')"
+										>
+											<div
+												class="title size-full text-lg flex justify-center items-center"
+											>
+												Login
+											</div>
+										</NuxtLink>
+									</div>
+								</div>
 								<p v-if="showModal === 'curseforge.zip'">
 									1. Download and install Curseforge from
-									<a href="https://www.curseforge.com/download/app"
+									<a
+										target="_blank"
+										href="https://www.curseforge.com/download/app"
 										>curseforge.com</a
 									><br />
 									2. Click "Minecraft" (it may need to install)<br />
@@ -128,7 +243,8 @@ const showModal = ref<string | null>(null);
 								</p>
 								<p v-if="showModal === 'prism.zip'">
 									1. Download and install Prism from
-									<a href="prismlauncher.org/download/">prismlauncher.org</a
+									<a target="_blank" href="prismlauncher.org/download/"
+										>prismlauncher.org</a
 									><br />
 									2. Log in to Prism with your Microsoft account.<br />
 									3. Drag and drop
@@ -150,6 +266,50 @@ const showModal = ref<string | null>(null);
 </template>
 
 <style>
+@font-face {
+	font-family: "Minecraft";
+	src: url("https://cdn.greasygang.co/fonts/minecraft.woff") format("woff");
+}
+
+.otp-input {
+	width: 40px;
+	height: 40px;
+	padding: 5px;
+	margin: 0 0.25rem;
+	font-size: 20px;
+	color: white;
+	font-family: "Minecraft";
+	border: 2px solid white;
+	text-align: center;
+	-webkit-user-select: none;
+	user-select: none;
+	background-color: black;
+}
+input {
+	caret-shape: underscore;
+}
+input:focus-visible {
+	outline: 0;
+	border: 3px solid white;
+	color: #ffffa0;
+}
+
+.otp-input::-webkit-inner-spin-button,
+.otp-input::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+input::selection {
+	background: transparent;
+}
+input::placeholder {
+	-webkit-user-select: none;
+	user-select: none;
+	font-size: 15px;
+	text-align: center;
+	font-weight: 600;
+}
+
 .mc-modal {
 	a {
 		color: #55ffff;
@@ -159,18 +319,15 @@ const showModal = ref<string | null>(null);
 		}
 	}
 }
-.v-enter-active,
-.v-leave-active {
-	transition: opacity 0.5s ease;
+
+.modal-enter-active,
+.modal-leave-active {
+	transition: opacity 0.2s;
 }
 
-.v-enter-from,
-.v-leave-to {
+.modal-enter-from,
+.modal-leave-to {
 	opacity: 0;
-}
-@font-face {
-	font-family: "Minecraft";
-	src: url("https://cdn.greasygang.co/fonts/minecraft.woff") format("woff");
 }
 
 .mc-font {
@@ -207,6 +364,7 @@ const showModal = ref<string | null>(null);
 		box-shadow:
 			inset -2px -4px #0006,
 			inset 2px 2px #fff7;
+		font-weight: 600;
 	}
 	.title > svg {
 		filter: drop-shadow(2px 2px #000a);

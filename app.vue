@@ -40,7 +40,7 @@ const navs: { name: string; path: string }[] = [
 					v-for="nav in navs"
 					:key="nav.path"
 					:href="nav.path"
-					:class="{ underline: nav.path === route.fullPath }"
+					:class="{ underline: nav.path === route.path }"
 					class="text-gray-300 hover:text-gray-200 text-xl underline-offset-6"
 					>{{ nav.name }}</NuxtLink
 				>

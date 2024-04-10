@@ -6,12 +6,15 @@ export default defineNuxtPlugin(() => {
 	return {
 		provide: {
 			ogTitle: (title?: string) => `GreasyGang ${title ? " - " + title : ""}`,
-			login: (scopes?: Scopes[], redirect: boolean = true) => {
+			login: (providedScopes?: Scopes[], redirect: boolean = true) => {
 				const loginURL = new URL(config.apiBase + "/login/twitch");
+				const scopes: Scopes[] = [];
 				if (redirect) loginURL.searchParams.set("redirect", route.fullPath);
+				if (!scopes.includes("user:read:email"))
+					scopes?.push("user:read:email");
 				if (scopes) loginURL.searchParams.set("scopes", scopes.join(" "));
 
-				return loginURL;
+				return loginURL.href;
 			},
 			ContentImage: (path: string) =>
 				`${config.apiBase}/image/${config.branch}/website/images/${path}`,

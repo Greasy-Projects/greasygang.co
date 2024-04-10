@@ -1,0 +1,10 @@
+mutation whitelistLink($code: Int!) {
+	whitelistLink(code: $code) {
+		status
+		message
+	}
+}
+
+query checkWhitelistStatus {
+	checkWhitelist
+}
