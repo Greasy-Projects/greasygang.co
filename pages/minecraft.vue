@@ -35,18 +35,24 @@ import OtpInput from "@/components/otp/input.vue";
 const otpInput = ref<InstanceType<typeof OtpInput> | null>(null);
 const bindModal = ref("");
 
-const handleOnComplete = (value: string) => {
+async function handleOnComplete(value: string) {
 	console.log("OTP completed: ", value);
 	setTimeout(() => {
 		otpInput.value?.clearInput();
 	}, 100);
-};
+	try {
+		const res = await GqlWhitelistLink({
+			code: Number(value),
+		});
+		if (res.whitelistLink.status === 200)
+			push.success(res.whitelistLink.message);
+		else push.error(res.whitelistLink.message);
+	} catch (e) {
+		push.error((e as any).gqlErrors[0].message);
+	}
+}
 const change = (value: string) => {
 	console.log("OTP change: ", value);
-};
-const fillInput = (value: string) => {
-	console.log(value);
-	otpInput.value?.fillInput(value);
 };
 
 const user = useUser();
@@ -153,7 +159,11 @@ const user = useUser();
 									id="modal-title"
 									class="text-lg font-medium text-white"
 								>
-									{{user ? "Enter your whitelist code" : "Please login to continue"}}
+									{{
+										user
+											? "Enter your whitelist code"
+											: "Please login to continue"
+									}}
 								</h2>
 								<h2
 									v-else

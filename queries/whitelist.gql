@@ -1,0 +1,6 @@
+mutation whitelistLink($code: Int!) {
+	whitelistLink(code: $code) {
+		status
+		message
+	}
+}
