@@ -2,13 +2,11 @@
 const { $ogTitle } = useNuxtApp();
 useHead({
 	link: [{ rel: "icon", type: "image/png", href: "/favicon.webp" }],
-	title: "GreasyGang",
 });
 useSeoMeta({
 	themeColor: "#e8a946",
 	ogTitle: $ogTitle(),
-	description: "Welcome to the Greasy Gang",
-	ogDescription: "Welcome to the Greasy Gang",
+
 	ogImage: "/favicon.webp",
 });
 

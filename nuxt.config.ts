@@ -10,14 +10,11 @@ export default defineNuxtConfig({
 		"notivue/animations.css",
 	],
 	devtools: { enabled: true },
-	build: {
-		transpile: [
-			"@fortawesome/fontawesome-svg-core",
-			"@fortawesome/vue-fontawesome",
-			"@fortawesome/free-solid-svg-icons",
-			"@fortawesome/free-brands-svg-icons",
-		],
+	googleFonts: {
+		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
+		preload: true,
 	},
+
 	modules: [
 		"@unocss/nuxt",
 		"@nuxtjs/google-fonts",
@@ -25,12 +22,16 @@ export default defineNuxtConfig({
 		"nuxt-graphql-client",
 		"notivue/nuxt",
 		"nuxt-build-cache",
+		"@nuxtjs/seo",
 	],
-	notivue: { limit: 4, enqueue: true, position: "bottom-right" },
-	googleFonts: {
-		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
-		preload: true,
+	site: {
+		url: "https://greasygang.co",
+		name: "GreasyGang",
+		image: "",
+		description: "Welcome to the Greasy Gang!",
+		defaultLocale: "en",
 	},
+	notivue: { limit: 4, enqueue: true, position: "bottom-right" },
 	runtimeConfig: {
 		public: {
 			apiBase: process.env.API_BASE,
@@ -44,6 +45,7 @@ export default defineNuxtConfig({
 			name: "auth_session",
 			mode: "cookie",
 		},
+		watch: true,
 		codegen: {
 			disableOnBuild: true,
 		},
@@ -60,5 +62,13 @@ export default defineNuxtConfig({
 			xxl: 1536,
 			"2xl": 1536,
 		},
+	},
+	build: {
+		transpile: [
+			"@fortawesome/fontawesome-svg-core",
+			"@fortawesome/vue-fontawesome",
+			"@fortawesome/free-solid-svg-icons",
+			"@fortawesome/free-brands-svg-icons",
+		],
 	},
 });

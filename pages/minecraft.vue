@@ -10,9 +10,13 @@ useHead({
 		},
 	],
 });
+const description = ref(
+	"Downloads and setup instructions for the GreasyCraft Modpack"
+);
 useSeoMeta({
 	ogTitle: $ogTitle("GreasyCraft"),
-	ogDescription: "Downloads and setup instructions for the GreasyCraft Modpack",
+	description: description,
+	ogDescription: description,
 	twitterCard: "summary_large_image",
 	ogImage: $ContentImage("minecraft/greasycraft.png"),
 });
@@ -26,10 +30,7 @@ const router = useRouter();
 const wlHash = "#wl";
 const whitelistStatus = ref(false);
 if (route.hash === wlHash) {
-	useSeoMeta({
-		ogTitle: $ogTitle("GreasyCraft"),
-		ogDescription: "Get whitelisted on the GreasyCraft SMP",
-	});
+	description.value = "Get whitelisted on the GreasyCraft SMP!";
 	showModal.value = route.hash;
 	whitelistStatus.value =
 		(await GqlCheckWhitelistStatus().catch(() => {}))?.checkWhitelist ?? false;
@@ -186,7 +187,10 @@ const user = useUser();
 							</div>
 							<div class="mt-4 text-sm text-white">
 								<div v-if="showModal === wlHash && !whitelistStatus">
-									<div v-if="user" class="space-y-2 flex flex-col items-center w-min">
+									<div
+										v-if="user"
+										class="space-y-2 flex flex-col items-center w-min"
+									>
 										<OtpInput
 											ref="otpInput"
 											v-model:value="bindModal"
