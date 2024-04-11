@@ -10,9 +10,14 @@ useHead({
 		},
 	],
 });
-const description = ref(
-	"Downloads and setup instructions for the GreasyCraft Modpack"
-);
+const route = useRoute();
+const router = useRouter();
+const whitelist = route.query.wl === null; //null means it's set, else it's undefined
+const whitelistStatus = ref(false);
+const description = whitelist
+	? "Get whitelisted on the GreasyCraft SMP!"
+	: "Downloads and setup instructions for the GreasyCraft Modpack";
+
 useSeoMeta({
 	ogTitle: $ogTitle("GreasyCraft"),
 	description: description,
@@ -25,13 +30,9 @@ const downloadURL = "https://cdn.greasygang.co/greasycraft/";
 const files = ["curseforge.zip", "prism.zip"];
 
 const showModal = ref<string | null>(null);
-const route = useRoute();
-const router = useRouter();
-const wlHash = "#wl";
-const whitelistStatus = ref(false);
-if (route.hash === wlHash) {
-	description.value = "Get whitelisted on the GreasyCraft SMP!";
-	showModal.value = route.hash;
+const wlModalValue = "wl";
+if (whitelist) {
+	showModal.value = wlModalValue;
 	whitelistStatus.value =
 		(await GqlCheckWhitelistStatus().catch(() => {}))?.checkWhitelist ?? false;
 }
@@ -110,17 +111,17 @@ const user = useUser();
 					</div>
 					<div
 						:class="{
-							'h-11': $route.hash === wlHash && showModal !== wlHash,
+							'h-11': whitelist && showModal !== wlModalValue,
 						}"
 						class="h-0 transition-height"
 					>
 						<Transition>
 							<div
-								v-if="$route.hash === wlHash && showModal !== wlHash"
+								v-if="whitelist && showModal !== wlModalValue"
 								key="whitelist"
 								class="mc-button mc-font size-full bg-cover bg-center"
 								:style="$BGContentImage('minecraft/button.png')"
-								@click="showModal = wlHash"
+								@click="showModal = wlModalValue"
 							>
 								<div
 									class="h-full title font-600 text-[clamp(0rem,4vw,1.125rem)] sm:text-lg flex justify-center items-center"
@@ -158,7 +159,7 @@ const user = useUser();
 						>
 							<div class="flex justify-between items-center">
 								<h2
-									v-if="showModal === wlHash"
+									v-if="showModal === wlModalValue"
 									id="modal-title"
 									class="text-lg font-medium text-white"
 								>
@@ -186,7 +187,7 @@ const user = useUser();
 								</button>
 							</div>
 							<div class="mt-4 text-sm text-white">
-								<div v-if="showModal === wlHash && !whitelistStatus">
+								<div v-if="showModal === wlModalValue && !whitelistStatus">
 									<div
 										v-if="user"
 										class="space-y-2 flex flex-col items-center w-min"
