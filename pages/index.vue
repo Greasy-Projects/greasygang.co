@@ -76,6 +76,7 @@ try {
 							height="200"
 							:src="$ContentImage(sponsor.image)"
 							class="rounded-t-2xl rounded-tl-10vw sm:rounded-tl-10vw w-full h-full object-left object-cover"
+							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
 						<div
