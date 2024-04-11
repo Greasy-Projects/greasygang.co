@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { z, ZodBoolean, ZodError, ZodString } from "zod";
+import { z, ZodBoolean, ZodError, ZodString, ZodEnum } from "zod";
 import { push } from "notivue";
 const errorRef = ref<{ [key: string]: string }>({});
-const responseRef = ref("");
 
 const route = useRoute();
 const slug = (route.params.slug as string[]).join("/").replace(/\/$/, "");
@@ -179,6 +178,16 @@ const saveChanges = async () => {
 							<input v-model="formData[key]" class="size-5" type="checkbox" />
 						</label>
 					</div>
+					<div v-else-if="TypeName(key, ZodEnum)">
+						<select id="cars" v-model="formData[key]" name="cars">
+							<option
+								v-for="val in schema.shape[key]._def.values"
+								:key="val"
+							>
+								{{ val }}
+							</option>
+						</select>
+					</div>
 					<div v-else>unsupported data type</div>
 				</div>
 			</template>
@@ -225,7 +234,6 @@ const saveChanges = async () => {
 					recent changes to show due to caching.
 				</p>
 			</div>
-			{{ responseRef }}
 		</div>
 	</div>
 </template>
