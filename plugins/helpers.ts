@@ -5,7 +5,7 @@ export default defineNuxtPlugin(() => {
 
 	return {
 		provide: {
-			ogTitle: (title?: string) => `GreasyGang ${title ? " - " + title : ""}`,
+			ogTitle: (title?: string) => `${title ? title + " - " : ""}GreasyGang`,
 			login: (providedScopes?: Scopes[], redirect: boolean = true) => {
 				const loginURL = new URL(config.apiBase + "/login/twitch");
 				const scopes: Scopes[] = [];

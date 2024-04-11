@@ -27,7 +27,6 @@ export default defineNuxtConfig({
 	site: {
 		url: "https://greasygang.co",
 		name: "GreasyGang",
-		image: "",
 		description: "Welcome to the Greasy Gang!",
 		defaultLocale: "en",
 	},
