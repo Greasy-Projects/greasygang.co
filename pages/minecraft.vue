@@ -32,11 +32,12 @@ const files = ["curseforge.zip", "prism.zip"];
 const showModal = ref<string | null>(null);
 const wlModalValue = "wl";
 if (whitelist) {
+	showModal.value = wlModalValue;
 	try {
 		const whitelistStatusReq = await GqlCheckWhitelistStatus();
 		whitelistStatus.value = whitelistStatusReq.checkWhitelist;
-	} finally {
-		showModal.value = wlModalValue;
+	} catch {
+		// kill me
 	}
 }
 import OtpInput from "@/components/otp/input.vue";
