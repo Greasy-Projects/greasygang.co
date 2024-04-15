@@ -17,7 +17,7 @@ export default defineNuxtPlugin(() => {
 				return loginURL.href;
 			},
 			ContentImage: (path: string) =>
-				`${config.apiBase}/image/${config.branch}/website/images/${path}`,
+				`/content/image/${config.branch}/website/images/${path}`,
 			PreContentImage: (path: string, width?: number, height?: number) => {
 				const { $ContentImage } = useNuxtApp();
 

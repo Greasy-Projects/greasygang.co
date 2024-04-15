@@ -74,6 +74,7 @@ try {
 						<NuxtImg
 							width="600"
 							height="200"
+							densities="x1 x2"
 							:src="$ContentImage(sponsor.image)"
 							class="rounded-t-2xl rounded-tl-10vw sm:rounded-tl-10vw w-full h-full object-left object-cover"
 							:style="'object-position:' + sponsor.imageCoverMode"
@@ -124,7 +125,7 @@ try {
 					}"
 				>
 					<NuxtImg
-						:src="$ContentImage('/mac/babe.png')"
+						:src="$ContentImage('mac/babe.png')"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>
 				</div>

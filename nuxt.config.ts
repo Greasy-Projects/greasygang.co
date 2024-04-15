@@ -50,8 +50,12 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
-		domains: [process.env.API_BASE ?? ""],
-		quality: 100,
+		domains: [process.env.API_BASE?.replace(/(^\w+:|^)\/\//, "") ?? ""],
+		alias: {
+			content: process.env.API_BASE ?? "",
+		},
+		quality: 90,
+		densities: [1, 2],
 		screens: {
 			xs: 320,
 			sm: 640,
