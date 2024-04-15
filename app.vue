@@ -31,7 +31,7 @@ const navs: { name: string; path: string }[] = [
 			<Notification :item="item" />
 		</Notivue>
 		<nav
-			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg transition-colors"
+			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg"
 		>
 			<NuxtImg :src="$ContentImage('/gg.png')" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">
@@ -39,8 +39,11 @@ const navs: { name: string; path: string }[] = [
 					v-for="nav in navs"
 					:key="nav.path"
 					:href="nav.path"
-					:class="{ underline: nav.path === route.path }"
-					class="text-gray-300 hover:text-gray-200 text-xl underline-offset-6"
+					:class="{
+						underline: nav.path === route.path,
+						'hover:scale-110': nav.path !== route.path,
+					}"
+					class="text-white text-xl transition-(transform color) underline-offset-6"
 					>{{ nav.name }}</NuxtLink
 				>
 			</div>
