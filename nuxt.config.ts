@@ -1,5 +1,14 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+	devtools: { enabled: true },
+	googleFonts: {
+		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
+		preload: true,
+	},
+	routeRules: {
+		"/scopes": { robots: "noindex" },
+		"/login": { robots: "noindex" },
+	},
 	css: [
 		"@unocss/reset/normalize.css",
 		"@unocss/reset/sanitize/sanitize.css",
@@ -9,12 +18,6 @@ export default defineNuxtConfig({
 		"notivue/notifications.css",
 		"notivue/animations.css",
 	],
-	devtools: { enabled: true },
-	googleFonts: {
-		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
-		preload: true,
-	},
-
 	modules: [
 		"@unocss/nuxt",
 		"@nuxtjs/google-fonts",
@@ -74,7 +77,6 @@ export default defineNuxtConfig({
 			"@fortawesome/free-brands-svg-icons",
 		],
 	},
-
 	experimental: {
 		viewTransition: true,
 	},
