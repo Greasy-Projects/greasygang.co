@@ -69,11 +69,6 @@ const user = useUser();
 
 <template>
 	<main>
-		<NuxtImg
-			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			:src="$ContentImage('GoopBGTransparent.png')"
-		></NuxtImg>
-
 		<div class="flex flex-col justify-center items-center h-dvh">
 			<div
 				class="flex flex-col space-y-4 w-90vw max-w-lg p-6 justify-between rounded-xl"

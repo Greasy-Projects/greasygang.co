@@ -74,4 +74,8 @@ export default defineNuxtConfig({
 			"@fortawesome/free-brands-svg-icons",
 		],
 	},
+
+	experimental: {
+		viewTransition: true,
+	},
 });

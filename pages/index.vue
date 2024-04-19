@@ -57,10 +57,7 @@ try {
 	<main
 		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
 	>
-		<NuxtImg
-			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			:src="$ContentImage('/GoopBGTransparent.png')"
-		></NuxtImg>
+	
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
 			<div
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
