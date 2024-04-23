@@ -7,6 +7,6 @@ export default z.object({
 		.describe("; left | center | right"),
 	image: z.string().min(5).describe("banner"),
 	code: z.string().describe("to show in the code label"),
-	description: z.string().min(100).describe("shown underneath the image"),
+	description: z.string().min(50).describe("shown underneath the image"),
 	url: z.string().min(5).describe("that the button leads to"),
 });
