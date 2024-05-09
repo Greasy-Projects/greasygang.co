@@ -1,13 +1,21 @@
-<script setup>
+<script setup lang="ts">
 const props = defineProps({
 	all: { type: Boolean, required: false, default: false },
 });
 const title = props.all ? "top viewers all time" : "top viewers this month";
-const watchtime = (await GqlGetWatchtime({ limit: 100 })).watchtime;
-
+let watchtime: {
+	avatar?: string | null | undefined;
+	displayName: string;
+	time: number;
+}[];
+try {
+	watchtime = (await GqlGetWatchtime({ limit: 100 })).watchtime;
+} catch {
+	//
+}
 const scrollContainer = ref();
 const fadeThing = ref();
-const handleScroll = (s, q) => {
+const handleScroll = () => {
 	console.log(scrollContainer.value.scrollTop);
 	if (scrollContainer.value.scrollTop > 10) {
 		fadeThing.value.style.opacity = "1";
@@ -19,6 +27,7 @@ const handleScroll = (s, q) => {
 
 <template>
 	<div
+		v-if="watchtime"
 		class="flex relative flex-col h-full max-h-5xl p-6 pt-18 pb-2 justify-between bg-secondary rounded-xl"
 	>
 		<div class="absolute top-6 left-0 flex w-full justify-center items-center">
