@@ -1,0 +1,7 @@
+query getWatchtime ($limit: Int) {
+	watchtime(limit: $limit) {
+		avatar
+		displayName
+		time
+	}
+}
