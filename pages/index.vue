@@ -70,11 +70,11 @@ try {
 							height="200"
 							densities="x1 x2"
 							:src="$ContentImage(sponsor.image)"
-							class="rounded-t-2xl w-full h-full object-left object-cover"
+							class="rounded-xl w-full h-full object-left object-cover"
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
-						<div class="absolute inset-0 bg-gradient-to-t from-black from-5% to-transparent"></div>
+						<div class="rounded-xl absolute inset-0 bg-gradient-to-t from-black from-5% to-transparent"></div>
 						<div
 							v-if="sponsor.code"
 							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
@@ -87,7 +87,7 @@ try {
 						</div>
 						<div class="absolute flex bottom-0 px-4 py-6 gap-2">
 							<div
-						class="rounded-b-xl row-span-2 h-2/6 flex justify-center items-center"
+						class="row-span-2 h-2/6 flex justify-center items-center"
 					>
 							<p
 								class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
