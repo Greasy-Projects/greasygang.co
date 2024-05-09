@@ -40,21 +40,21 @@ import type { z } from "zod";
 import Sponsor from "~/schemas/sponsor";
 const sponsor = ref<z.infer<typeof Sponsor>>();
 try {
-	sponsor.value = JSON.parse((
+	sponsor.value = JSON.parse(
+		(
 			await GqlGetContent({
 				path: "/website/sponsor",
-			})).content
+			})
+		).content
 	);
 } catch {
 	//
 }
-
 </script>
 <template>
 	<main
 		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
 	>
-	
 		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
 			<div
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
@@ -74,7 +74,9 @@ try {
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
-						<div class="rounded-xl absolute inset-0 bg-gradient-to-t from-black from-5% to-transparent"></div>
+						<div
+							class="rounded-xl absolute inset-0 bg-gradient-to-t from-black from-5% to-transparent"
+						></div>
 						<div
 							v-if="sponsor.code"
 							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
@@ -86,31 +88,28 @@ try {
 							>&nbsp;rewards!
 						</div>
 						<div class="absolute flex bottom-0 px-4 py-6 gap-2">
-							<div
-						class="row-span-2 h-2/6 flex justify-center items-center"
-					>
-							<p
-								class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
-							>
-						{{ sponsor.description }}
-						
-					</p>
+							<div class="row-span-2 h-2/6 flex justify-center items-center">
+								<p
+									class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
+								>
+									{{ sponsor.description }}
+								</p>
 							</div>
 							<NuxtLink
-										:href="sponsor.url"
-										target="_blank"
-										class="w-70 select-none my-auto"
+								:href="sponsor.url"
+								target="_blank"
+								class="w-70 select-none my-auto"
+							>
+								<div
+									class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-12 justify-center items-center"
+								>
+									<p
+										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
 									>
-										<div
-											class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-12 justify-center items-center"
-										>
-											<p
-												class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
-											>
-												PLAY GAME
-											</p>
-										</div>
-									</NuxtLink>
+										PLAY GAME
+									</p>
+								</div>
+							</NuxtLink>
 						</div>
 					</div>
 				</div>
