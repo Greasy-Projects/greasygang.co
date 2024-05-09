@@ -159,7 +159,7 @@ try {
 				</div>
 			</div>
 			<WatchTime />
-			<WatchTime />
+			<WatchTime all />
 		</div>
 	</main>
 </template>
