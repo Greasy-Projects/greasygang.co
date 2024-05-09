@@ -1,4 +1,4 @@
-query getWatchtime ($limit: Int) {
+query getWatchtime($limit: Int) {
 	watchtime(limit: $limit) {
 		avatar
 		displayName

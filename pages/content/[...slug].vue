@@ -180,10 +180,7 @@ const saveChanges = async () => {
 					</div>
 					<div v-else-if="TypeName(key, ZodEnum)">
 						<select id="cars" v-model="formData[key]" name="cars">
-							<option
-								v-for="val in schema.shape[key]._def.values"
-								:key="val"
-							>
+							<option v-for="val in schema.shape[key]._def.values" :key="val">
 								{{ val }}
 							</option>
 						</select>
