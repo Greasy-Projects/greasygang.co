@@ -30,10 +30,6 @@ const navs: { name: string; path: string }[] = [
 		<Notivue v-slot="item" class="font-poppins">
 			<Notification :item="item" />
 		</Notivue>
-		<NuxtImg
-			class="absolute -z-100 size-full op-80 overflow-hidden object-cover"
-			:src="$ContentImage('/GoopBGTransparent.png')"
-		></NuxtImg>
 		<nav
 			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg"
 		>
@@ -83,6 +79,10 @@ const navs: { name: string; path: string }[] = [
 
 body {
 	background-color: var(--primary);
+	background-image: url(/GoopRepeat.png);
+	background-size: 80rem;
+	background-position: center;
+	background-repeat: repeat;
 }
 
 a {
