@@ -16,12 +16,19 @@ try {
 const scrollContainer = ref();
 const fadeThing = ref();
 const handleScroll = () => {
-	console.log(scrollContainer.value.scrollTop);
-	if (scrollContainer.value.scrollTop > 10) {
-		fadeThing.value.style.opacity = "1";
-	} else {
-		fadeThing.value.style.opacity = "0";
-	}
+	const scrollTop = scrollContainer.value.scrollTop;
+	const maxHeight = 3;
+	const minHeight = 1.25;
+
+	const height = Math.min(
+		Math.max(
+			((scrollTop * 1.4) / 100) * (maxHeight - minHeight) + minHeight,
+			minHeight
+		),
+		maxHeight
+	);
+
+	fadeThing.value.style.height = height.toString() + "rem";
 };
 </script>
 
@@ -39,10 +46,7 @@ const handleScroll = () => {
 		</div>
 		<div
 			ref="fadeThing"
-			class="absolute top-18 z-5 left-.5% w-99% op-0 transition-opacity-100 h20 pointer-events-none bg-gradient-to-b from-secondary to-transparent"
-		></div>
-		<div
-			class="absolute bottom-1 rounded-b-lg z-5 left-.5% w-99% h-20 bg-gradient-to-b pointer-events-none from-transparent to-secondary"
+			class="absolute top-18 z-5 left-.5% w-99% h-5 rounded-b-full pointer-events-none bg-gradient-to-b from-secondary to-transparent"
 		></div>
 		<div
 			ref="scrollContainer"
@@ -63,6 +67,9 @@ const handleScroll = () => {
 				</h1>
 			</div>
 		</div>
+		<div
+			class="absolute bottom-1.9 rounded-b-lg z-5 left-.5% w-99% h-15 bg-gradient-to-b pointer-events-none from-transparent to-secondary"
+		></div>
 	</div>
 </template>
 
