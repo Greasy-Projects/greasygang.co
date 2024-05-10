@@ -31,16 +31,18 @@ const handleScroll = () => {
 		class="flex relative flex-col h-full max-h-5xl p-6 pt-18 pb-2 justify-between bg-secondary rounded-xl"
 	>
 		<div class="absolute top-6 left-0 flex w-full justify-center items-center">
-			<h1 class="font-bold z-10 text-6xl font-bebas">
+			<h1
+				class="font-bold z-10 text-[clamp(1.5rem,10cqw,3.75rem)] lg:text-[clamp(2.5rem,5cqw,3.75rem)] font-bebas"
+			>
 				{{ title }}
 			</h1>
 		</div>
 		<div
 			ref="fadeThing"
-			class="absolute top-18 z-5 left-0 op-0 transition-opacity-100 h20 pointer-events-none w-full bg-gradient-to-b from-secondary to-transparent"
+			class="absolute top-18 z-5 left-.5% w-99% op-0 transition-opacity-100 h20 pointer-events-none bg-gradient-to-b from-secondary to-transparent"
 		></div>
 		<div
-			class="absolute bottom-2 z-5 left-0 h-20 w-full bg-gradient-to-b pointer-events-none from-transparent to-secondary"
+			class="absolute bottom-1 rounded-b-lg z-5 left-.5% w-99% h-20 bg-gradient-to-b pointer-events-none from-transparent to-secondary"
 		></div>
 		<div
 			ref="scrollContainer"
@@ -56,8 +58,10 @@ const handleScroll = () => {
 					class="bg-blue size-15 rounded-full"
 					:src="user.avatar ?? undefined"
 				/>
-				<p class="font-bold text-xl">{{ user.displayName }}</p>
-				<h1 class="font-bebas font-bold text-2xl">{{ user.time }}</h1>
+				<p class="font-bold text-[clamp(.3rem,3cqw,1.25rem)] ">
+					{{ user.displayName }}
+				</p>
+				<h1 class="font-bebas font-bold text-[clamp(.3rem,4.5cqw,1.50rem)]">{{ user.time }}</h1>
 			</div>
 		</div>
 	</div>
