@@ -55,7 +55,7 @@ const handleScroll = () => {
 				class="bg-button snap-start scroll-my-10 items-center justify-between pr-10 rounded-full p-2 flex"
 			>
 				<img
-					class="bg-blue size-15 rounded-full"
+					class="size-15 rounded-full"
 					:src="user.avatar ?? undefined"
 				/>
 				<p class="font-bold text-[clamp(.3rem,3cqw,1.25rem)] ">
