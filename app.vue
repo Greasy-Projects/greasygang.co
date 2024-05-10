@@ -55,7 +55,7 @@ const navs: { name: string; path: string }[] = [
 						'/login/twitch?scopes=user:read:email&redirect=' +
 						$route.fullPath
 					"
-					class="bg-#ff4040 hover:bg-#e03a3a text-white hover:text-gray-100 h-min px-5 py-1 rounded-lg text-white"
+					class="bg-secondary hover:bg-button text-white h-min px-5 py-1 rounded-lg text-white"
 					>Login</NuxtLink
 				>
 				<NuxtImg

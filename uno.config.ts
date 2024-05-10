@@ -48,8 +48,8 @@ export default defineConfig({
 		},
 		colors: {
 			primary: "#e8a946",
-			secondary: "#ff4040",
-			button: "#e03a3a",
+			secondary: "#fa4040",
+			button: "#de3535",
 		},
 	},
 	transformers: [transformerDirectives(), transformerVariantGroup()],

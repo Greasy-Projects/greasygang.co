@@ -46,7 +46,7 @@ const handleScroll = () => {
 		></div>
 		<div
 			ref="scrollContainer"
-			class="overflow-scroll nth--n+3:(border-5 border-solid) nth-1:border-[#ffa376] nth-2:border-[#ff9c80] nth-3:border-[#ff6954] snap-y snap-mandatory space-y-3 py-6"
+			class="overflow-scroll nth--n+3:(border-5 border-solid) nth-1:border-[#ffa376] nth-2:border-[#ff9c80] nth-3:border-[#ff735f] snap-y snap-mandatory space-y-3 py-6"
 			@scroll="handleScroll"
 		>
 			<div
