@@ -46,7 +46,7 @@ const handleScroll = () => {
 		></div>
 		<div
 			ref="scrollContainer"
-			class="overflow-scroll nth--n+3:(border-5 border-solid) nth-1:border-[#ffa376] nth-2:border-[#ff9c80] nth-3:border-[#ff735f] snap-y snap-mandatory space-y-3 py-6"
+			class="overflow-scroll [&>:nth-child(-n+3)]:border-(4 inline-solid) [&>:nth-child(1)]:border-( [#ffa376]) [&>:nth-child(2)]:border-( [#fea894]) [&>:nth-child(3)]:border-( [#ff7e6c]) snap-y snap-mandatory space-y-3 py-6"
 			@scroll="handleScroll"
 		>
 			<div
@@ -54,14 +54,13 @@ const handleScroll = () => {
 				:key="user.displayName"
 				class="bg-button snap-start scroll-my-10 items-center justify-between pr-10 rounded-full p-2 flex"
 			>
-				<img
-					class="size-15 rounded-full"
-					:src="user.avatar ?? undefined"
-				/>
-				<p class="font-bold text-[clamp(.3rem,3cqw,1.25rem)] ">
+				<img class="size-15 rounded-full" :src="user.avatar ?? undefined" />
+				<p class="font-bold text-[clamp(.3rem,3cqw,1.25rem)]">
 					{{ user.displayName }}
 				</p>
-				<h1 class="font-bebas font-bold text-[clamp(.3rem,4.5cqw,1.50rem)]">{{ user.time }}</h1>
+				<h1 class="font-bebas font-bold text-[clamp(.3rem,4.5cqw,1.50rem)]">
+					{{ user.time }}
+				</h1>
 			</div>
 		</div>
 	</div>

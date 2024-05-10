@@ -11,15 +11,6 @@ import {
 } from "unocss";
 
 export default defineConfig({
-	rules: [
-		[
-			/^nth-(.+):(.*)$/,
-			async ([, d, r], { rawSelector, constructCSS, generator }) => {
-				const rule = await generator.parseToken(r);
-				return `${e(rawSelector)} > *:nth-child(${d}) { ${rule?.[0][2]} }`;
-			},
-		],
-	],
 	presets: [
 		presetUno({}),
 		presetAttributify(),
