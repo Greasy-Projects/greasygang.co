@@ -50,7 +50,6 @@ try {
 } catch {
 	//
 }
-
 // sponsor.value = { ...sponsor.value, enabled: false };
 </script>
 <template>
@@ -62,20 +61,18 @@ try {
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
 				class="grid w-full xs:grid-rows-5 gap-5"
 			>
-				<div
-					v-if="sponsor && sponsor.enabled"
-					class="flex flex-col gap-0 row-span-2"
-				>
-					<div class="flex h-4/6 relative row-span-4">
+				<div v-if="sponsor && sponsor.enabled" class="flex flex-col row-span-2">
+					<div class="flex h-full relative row-span-4">
 						<NuxtImg
 							width="600"
 							height="200"
 							densities="x1 x2"
 							:src="$ContentImage(sponsor.image)"
-							class="rounded-t-2xl rounded-tl-10vw sm:rounded-tl-10vw w-full h-full object-left object-cover"
+							class="rounded-xl w-full h-full object-left object-cover"
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
+
 						<div
 							v-if="sponsor.code"
 							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
@@ -86,32 +83,32 @@ try {
 							>&nbsp;to get<span class="lt-sm:hidden">&nbsp;in-game</span
 							>&nbsp;rewards!
 						</div>
-						<div class="absolute bottom-2 right-2">
+						<div
+							class="absolute bg-gradient-to-t rounded-xl from-black via-black/80 to-transparent flex bottom-0 p4 px-3.5 gap-2"
+						>
+							<div>
+								<p
+									class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
+								>
+									{{ sponsor.description }}
+								</p>
+							</div>
 							<NuxtLink
 								:href="sponsor.url"
 								target="_blank"
-								class="w-full lg:w-80 select-none"
+								class="w-70 select-none"
 							>
 								<div
-									class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-15 justify-center items-center"
+									class="rounded-lg px-4 flex bg-secondary hover:bg-button transition-colors h-full justify-center items-center"
 								>
 									<p
-										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
+										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest text-nowrap uppercase"
 									>
 										PLAY GAME
 									</p>
 								</div>
 							</NuxtLink>
 						</div>
-					</div>
-					<div
-						class="bg-secondary rounded-b-xl row-span-2 px-4 h-2/6 px-4 py-2 gap-1 flex justify-center items-center"
-					>
-						<p
-							class="flex items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw"
-						>
-							{{ sponsor.description }}
-						</p>
 					</div>
 				</div>
 				<div
