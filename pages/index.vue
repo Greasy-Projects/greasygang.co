@@ -50,6 +50,7 @@ try {
 } catch {
 	//
 }
+// sponsor.value = { ...sponsor.value, enabled: false };
 </script>
 <template>
 	<main
@@ -60,10 +61,7 @@ try {
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
 				class="grid w-full xs:grid-rows-5 gap-5"
 			>
-				<div
-					v-if="sponsor && sponsor.enabled"
-					class="flex flex-col gap-0 row-span-2"
-				>
+				<div v-if="sponsor && sponsor.enabled" class="flex flex-col row-span-2">
 					<div class="flex h-full relative row-span-4">
 						<NuxtImg
 							width="600"
@@ -74,9 +72,7 @@ try {
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
-						<div
-							class="rounded-xl absolute inset-0 bg-gradient-to-t from-black from-5% to-transparent"
-						></div>
+
 						<div
 							v-if="sponsor.code"
 							class="absolute bg-secondary text-nowrap overflow-hidden lt-sm:text-xs max-w-9/10 h-8 flex color-gray-100 items-center px-2 top-0 right-0 rounded-tr-xl rounded-bl-xl"
@@ -87,8 +83,10 @@ try {
 							>&nbsp;to get<span class="lt-sm:hidden">&nbsp;in-game</span
 							>&nbsp;rewards!
 						</div>
-						<div class="absolute flex bottom-0 px-4 py-6 gap-2">
-							<div class="row-span-2 h-2/6 flex justify-center items-center">
+						<div
+							class="absolute bg-gradient-to-t rounded-xl from-black via-black/80 to-transparent flex bottom-0 p4 px-3.5 gap-2"
+						>
+							<div>
 								<p
 									class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
 								>
@@ -98,13 +96,13 @@ try {
 							<NuxtLink
 								:href="sponsor.url"
 								target="_blank"
-								class="w-70 select-none my-auto"
+								class="w-70 select-none"
 							>
 								<div
-									class="rounded-xl px-4 flex bg-secondary hover:bg-button transition-colors h-12 justify-center items-center"
+									class="rounded-lg px-4 flex bg-secondary hover:bg-button transition-colors h-full justify-center items-center"
 								>
 									<p
-										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest uppercase"
+										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest text-nowrap uppercase"
 									>
 										PLAY GAME
 									</p>
