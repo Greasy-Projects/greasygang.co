@@ -68,7 +68,7 @@ try {
 							height="200"
 							densities="x1 x2"
 							:src="$ContentImage(sponsor.image)"
-							class="rounded-xl rounded-tl-8rem lg:rounded-tl-[clamp(6rem,10vw,10rem)] w-full h-full object-left object-cover"
+							class="rounded-xl rounded-tl-[clamp(3rem,10vw,10rem)] w-full h-full object-left object-cover"
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
