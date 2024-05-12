@@ -68,7 +68,7 @@ try {
 							height="200"
 							densities="x1 x2"
 							:src="$ContentImage(sponsor.image)"
-							class="rounded-xl w-full h-full object-left object-cover"
+							class="rounded-xl rounded-tl-8rem lg:rounded-tl-[clamp(6rem,10vw,10rem)] w-full h-full object-left object-cover"
 							:style="'object-position:' + sponsor.imageCoverMode"
 						>
 						</NuxtImg>
@@ -84,11 +84,11 @@ try {
 							>&nbsp;rewards!
 						</div>
 						<div
-							class="absolute bg-gradient-to-t rounded-xl from-black via-black/80 to-transparent flex bottom-0 p4 px-3.5 gap-2"
+							class="absolute bg-gradient-to-t rounded-xl from-black via-black/80 to-transparent sm:flex bottom-0 p4 px-3.5 gap-2"
 						>
 							<div>
 								<p
-									class="flex drop-shadow-lg rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
+									class="rounded-xl items-center text-sm sm:text-base lg:leading-normal leading-4 sm:leading-2.5vw mx-auto"
 								>
 									{{ sponsor.description }}
 								</p>
@@ -99,7 +99,7 @@ try {
 								class="w-70 select-none"
 							>
 								<div
-									class="rounded-lg px-4 flex bg-secondary hover:bg-button transition-colors h-full justify-center items-center"
+									class="rounded-lg px-4 flex bg-secondary hover:bg-button transition-colors h-10 lt-sm:mt-2.5 sm:h-full justify-center items-center"
 								>
 									<p
 										class="font-600 sm:text-sm lg:text-1.4vw xl:text-lg tracking-widest text-nowrap uppercase"
