@@ -7,7 +7,6 @@ import {
 	presetWebFonts,
 	transformerDirectives,
 	transformerVariantGroup,
-	toEscapedSelector as e,
 } from "unocss";
 
 export default defineConfig({
