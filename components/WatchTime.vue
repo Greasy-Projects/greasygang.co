@@ -9,7 +9,8 @@ let watchtime: {
 	time: number;
 }[];
 try {
-	watchtime = (await GqlGetWatchtime({ limit: 100 })).watchtime;
+	watchtime = (await GqlGetWatchtime({ limit: 100, total: props.all }))
+		.watchtime;
 } catch {
 	//
 }
@@ -58,7 +59,7 @@ const handleScroll = () => {
 			<div
 				v-for="user of watchtime"
 				:key="user.displayName"
-				class="bg-button snap-start scroll-my-9	 items-center justify-between pr-5 sm:pr-10 rounded-full p-2 flex"
+				class="bg-button snap-start scroll-my-9 items-center justify-between pr-5 sm:pr-10 rounded-full p-2 flex"
 			>
 				<img class="size-15 rounded-full" :src="user.avatar ?? undefined" />
 				<p class="font-bold text-[clamp(.3rem,3.5cqw,1.25rem)]">

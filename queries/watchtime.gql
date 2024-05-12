@@ -1,5 +1,5 @@
-query getWatchtime($limit: Int) {
-	watchtime(limit: $limit) {
+query getWatchtime($limit: Int, $total: Boolean) {
+	watchtime(limit: $limit, total: $total) {
 		avatar
 		displayName
 		time
