@@ -21,7 +21,7 @@ user.value = await GqlGetMe().catch(() => {});
 const route = useRoute();
 const navs: { name: string; path: string }[] = [
 	{ name: "home", path: "/" },
-	{ name: "minecraft", path: "/minecraft" },
+	// { name: "minecraft", path: "/minecraft" },
 	{ name: "about", path: "https://greasymac.fandom.com/wiki/GreasyMac_Wiki" },
 ];
 </script>
