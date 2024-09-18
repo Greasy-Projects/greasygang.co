@@ -76,7 +76,15 @@ const navs: { name: string; path: string }[] = [
 * {
 	border: none;
 }
-
+.font-bebas {
+	font-family: "Bebas Neue";
+}
+.font-poppins {
+	font-family: "Poppins";
+}
+.font-ibm {
+	font-family: "IBM Plex Sans";
+}
 body {
 	background-color: var(--primary);
 	background-image: url(/GoopRepeat.png);

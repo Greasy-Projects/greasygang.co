@@ -17,6 +17,7 @@ export default defineNuxtPlugin(() => {
 
 				return loginURL.href;
 			},
+			cmsImage: (path: string) => `/cms/assets/${path}`,
 			ContentImage: (path: string) =>
 				`/content/image/${config.branch}/website/images/${path}`,
 			PreContentImage: (path: string, width?: number, height?: number) => {

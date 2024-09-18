@@ -1,10 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 	devtools: { enabled: true },
-	googleFonts: {
-		families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
-		preload: true,
-	},
+	fonts: {},
+	// googleFonts: {
+	// 	families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
+	// 	preload: true,
+	// },
 	routeRules: {
 		"/scopes": { robots: "noindex" },
 		"/login": { robots: "noindex" },
@@ -26,6 +27,7 @@ export default defineNuxtConfig({
 		"notivue/nuxt",
 		"nuxt-build-cache",
 		"@nuxtjs/seo",
+		"@nuxt/fonts",
 	],
 	site: {
 		url: "https://greasygang.co",
@@ -53,9 +55,13 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
-		domains: [process.env.API_BASE?.replace(/(^\w+:|^)\/\//, "") ?? ""],
+		domains: [
+			process.env.API_BASE?.replace(/(^\w+:|^)\/\//, "") ?? "",
+			"cms.greasygang.co",
+		],
 		alias: {
 			content: process.env.API_BASE ?? "",
+			cms: "https://cms.greasygang.co",
 		},
 		quality: 90,
 		densities: [1, 2],
@@ -80,4 +86,5 @@ export default defineNuxtConfig({
 	experimental: {
 		viewTransition: true,
 	},
+	compatibilityDate: "2024-09-18",
 });

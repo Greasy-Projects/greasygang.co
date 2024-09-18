@@ -15,13 +15,6 @@ export default defineConfig({
 		presetAttributify(),
 		presetIcons(),
 		presetTypography(),
-		presetWebFonts({
-			fonts: {
-				IBM: "IBM Plex Sans",
-				bebas: "Bebas Neue",
-				poppins: "poppins",
-			},
-		}),
 	],
 	shortcuts: [
 		// ...

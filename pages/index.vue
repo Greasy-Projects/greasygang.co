@@ -36,27 +36,16 @@ const buttons = [
 		href: "https://open.spotify.com/playlist/21phkh5dZrZtO4E9Bf9qUy",
 	},
 ];
-import type { z } from "zod";
-import Sponsor from "~/schemas/sponsor";
-const sponsor = ref<z.infer<typeof Sponsor>>();
-try {
-	sponsor.value = JSON.parse(
-		(
-			await GqlGetContent({
-				path: "/website/sponsor",
-			})
-		).content
-	);
-} catch {
-	//
-}
-// sponsor.value = { ...sponsor.value, enabled: false };
+
+const { data: sponsor } = useAsyncData("sponsor", () =>
+	cms(readItem("Sponsor", 1))
+);
 </script>
 <template>
 	<main
 		class="font-poppins text-white mx-5 flex min-h-screen justify-center items-center"
 	>
-		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 max-w-7xl">
+		<div class="pt-20 pb-10 grid lg:grid-cols-2 gap-5 w-full max-w-7xl">
 			<div
 				:class="{ 'h-3xl': sponsor?.enabled, 'lt-lg:h-lg': !sponsor?.enabled }"
 				class="grid w-full xs:grid-rows-5 gap-5"
@@ -64,12 +53,11 @@ try {
 				<div v-if="sponsor && sponsor.enabled" class="flex flex-col row-span-2">
 					<div class="flex h-full relative row-span-4">
 						<NuxtImg
-							width="600"
-							height="200"
 							densities="x1 x2"
-							:src="$ContentImage(sponsor.image)"
+							layout="responsive"
+							:src="$cmsImage(sponsor.image) + '/sponsor'"
 							class="rounded-xl rounded-tl-[clamp(3rem,10vw,10rem)] w-full h-full object-left object-cover"
-							:style="'object-position:' + sponsor.imageCoverMode"
+							:style="'object-position:' + sponsor.imagePosition"
 						>
 						</NuxtImg>
 
@@ -94,6 +82,8 @@ try {
 								</p>
 							</div>
 							<NuxtLink
+								densities="x1 x2"
+								layout="responsive"
 								:href="sponsor.url"
 								target="_blank"
 								class="w-70 select-none"
@@ -118,7 +108,7 @@ try {
 					}"
 				>
 					<NuxtImg
-						:src="$ContentImage('mac/babe.png')"
+						:src="$cmsImage('777b4597-5c15-4835-b291-fdf8b9af3524/mac-babe')"
 						class="w-full h-full object-cover rounded-xl"
 					></NuxtImg>
 				</div>
