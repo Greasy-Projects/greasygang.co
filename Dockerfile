@@ -33,7 +33,6 @@ ENV PORT=3000
 WORKDIR /app
 
 COPY --from=builder --chown=node:node /app/.output ./.output
-RUN npm install --prefix ./.output/server --no-save --omit=dev --foreground-scripts sharp@0.32.6
 
 USER node
 
