@@ -153,7 +153,7 @@ const { data: sponsor } = useAsyncData("sponsor", () =>
 
 <style scoped>
 a.btn-before {
-	--border: theme(colors.primary);
+	--border: #e8a946;
 	position: relative;
 	transition: all 0.1s;
 	box-shadow: -6px 6px 0 var(--border);

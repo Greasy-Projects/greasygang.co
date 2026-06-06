@@ -23,7 +23,7 @@ const buttons = [
 				:key="button.href"
 				:href="button.href"
 				target="_blank"
-				class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-home-button- hover:bg-home-button-hovered border-none"
+				class="transition flex w-13 origin-center hover:transform-scale-108 h-13 m-1 justify-center text-white items-center duration-300 xs:m-2 md:m-3 mt-4 sm:(w-15 h-15) rounded-2xl bg-button hover:bg-secondary border-none"
 			>
 				<FontAwesomeIcon
 					:icon="[button.icon.type, button.icon.name]"

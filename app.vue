@@ -71,7 +71,7 @@ const navs: { name: string; path: string }[] = [
 </template>
 <style>
 :root {
-	--primary: theme(colors.primary);
+	--primary: #e8a946;
 }
 * {
 	border: none;

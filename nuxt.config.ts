@@ -54,6 +54,7 @@ export default defineNuxtConfig({
 		},
 	},
 	image: {
+		provider: "none",
 		domains: [
 			process.env.API_BASE?.replace(/(^\w+:|^)\/\//, "") ?? "",
 			"cms.greasygang.co",
