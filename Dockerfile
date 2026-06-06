@@ -14,6 +14,13 @@ RUN pnpm rebuild @parcel/watcher esbuild sharp vue-demi
 
 FROM deps AS builder
 
+ARG API_BASE=https://api.greasygang.co
+ARG GQL_HOST=https://api.greasygang.co/graphql
+ARG CALLBACK_URL=https://greasygang.co/auth/callback
+ENV API_BASE=$API_BASE
+ENV GQL_HOST=$GQL_HOST
+ENV CALLBACK_URL=$CALLBACK_URL
+
 COPY . .
 RUN pnpm run build
 
