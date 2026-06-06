@@ -9,7 +9,8 @@ WORKDIR /app
 RUN npm install -g pnpm@${PNPM_VERSION}
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm rebuild @parcel/watcher esbuild sharp vue-demi
 
 FROM deps AS builder
 
