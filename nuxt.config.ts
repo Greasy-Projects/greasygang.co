@@ -25,7 +25,6 @@ export default defineNuxtConfig({
 		"@nuxt/image",
 		"nuxt-graphql-client",
 		"notivue/nuxt",
-		"nuxt-build-cache",
 		"@nuxtjs/seo",
 		"@nuxt/fonts",
 	],
