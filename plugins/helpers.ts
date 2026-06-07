@@ -1,4 +1,12 @@
 import { type Scopes } from "~/constants";
+
+const cmsAssetBase = "https://cms.greasygang.co/assets";
+const contentImages: Record<string, string> = {
+	"gg.png": "4d8cc019-09a9-49b0-b5f7-816c754318de",
+};
+const cmsAssetUrl = (id: string, filename?: string) =>
+	`${cmsAssetBase}/${id}${filename ? `/${filename}` : ""}`;
+
 export default defineNuxtPlugin(() => {
 	const config = useRuntimeConfig().public;
 	const img = useImage();
@@ -17,9 +25,15 @@ export default defineNuxtPlugin(() => {
 
 				return loginURL.href;
 			},
-			cmsImage: (path: string) => `/cms/assets/${path}`,
-			ContentImage: (path: string) =>
-				`/content/image/${config.branch}/website/images/${path}`,
+			cmsImage: (path: string) => cmsAssetUrl(path.replace(/^\/+/, "")),
+			ContentImage: (path: string) => {
+				const filename = path.replace(/^\/+/, "");
+				const assetId = contentImages[filename];
+
+				if (assetId) return cmsAssetUrl(assetId, filename);
+
+				return `/content/image/${config.branch}/website/images/${filename}`;
+			},
 			PreContentImage: (path: string, width?: number, height?: number) => {
 				const { $ContentImage } = useNuxtApp();
 

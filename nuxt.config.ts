@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from "node:url";
+
 export default defineNuxtConfig({
 	devtools: { enabled: true },
 	fonts: {},
@@ -85,6 +87,21 @@ export default defineNuxtConfig({
 	},
 	experimental: {
 		viewTransition: true,
+	},
+	hooks: {
+		"vite:extendConfig"(config) {
+			if (
+				process.env.NODE_ENV === "production" ||
+				process.env.npm_lifecycle_event === "build"
+			)
+				return;
+
+			config.resolve ??= {};
+			config.resolve.alias ??= {};
+			config.resolve.alias["#app-manifest"] = fileURLToPath(
+				new URL("./.nuxt/manifest/meta/dev.json", import.meta.url)
+			);
+		},
 	},
 	compatibilityDate: "2024-09-18",
 });
