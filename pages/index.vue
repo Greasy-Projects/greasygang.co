@@ -54,13 +54,17 @@ const buttons = [
 
 <template>
 	<ClientOnly>
-		<GreasyDiner :buttons="buttons" />
+		<LazyGreasyDiner :buttons="buttons" />
+		<template #fallback>
+			<GreasyDinerFallback />
+		</template>
 	</ClientOnly>
 </template>
 
 <style>
 /* Make the page body fill screen edge to edge, no scroll */
-html, body {
+html,
+body {
 	height: 100%;
 	overflow: hidden;
 }

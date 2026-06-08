@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import * as THREE from "three";
-import { gsap } from "gsap";
-
-interface Button {
-	icon: { name: string; type: string };
-	text: string;
-	href: string;
-	tag: string;
-	color: string;
-}
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { GREASY_ASSETS } from "./greasy-diner/assets";
+import {
+	DINER_PALETTE,
+	ROOM_BOUNDS,
+	ROOM_COLLIDERS,
+	ROOM_SPAWNS,
+	ZONES,
+	type Button,
+	type RoomKey,
+	type Section,
+	type ZoneKey,
+} from "./greasy-diner/config";
+import { createSceneKit } from "./greasy-diner/sceneKit";
 
 const props = defineProps<{ buttons: Button[] }>();
 
@@ -18,14 +23,18 @@ const { data: sponsor } = useAsyncData("sponsor", () =>
 
 // ── REACTIVE STATE ──────────────────────────────────
 const canvas = ref<HTMLCanvasElement | null>(null);
-type Section = "none" | "menu" | "about" | "leaderboard";
 const activeSection = ref<Section>("none");
 const isLocked = ref(false);
 const showEnterHint = ref(true);
+const isTeleporting = ref(false);
+const isSceneReady = ref(false);
+const teleportLabel = ref("Walking the hall");
+const currentRoom = ref<RoomKey>("main");
 
 // proximity prompt: which zone the player is standing near
-type ZoneKey = "none" | "menu" | "about" | "leaderboard";
 const nearZone = ref<ZoneKey>("none");
+const focusedLink = ref<string | null>(null);
+const focusedLinkLabel = ref<string | null>(null);
 
 // ── THREEJS REFS ─────────────────────────────────────
 let renderer: THREE.WebGLRenderer | null = null;
@@ -38,20 +47,8 @@ const euler = new THREE.Euler(0, 0, 0, "YXZ");
 const vel = new THREE.Vector3();
 const dir = new THREE.Vector3();
 const keys: Record<string, boolean> = {};
-
-// proximity zones (world-space centre + radius)
-const ZONES: { key: ZoneKey; cx: number; cz: number; radius: number; label: string; emoji: string }[] = [
-	{ key: "menu",        cx:  0,    cz: -8.0, radius: 4.5, label: "VIEW MENU",        emoji: "🍔" },
-	{ key: "about",       cx: -10.5, cz: -6.5, radius: 3.8, label: "ABOUT GREASYMAC",  emoji: "🎮" },
-	{ key: "leaderboard", cx:  10.5, cz: -6.5, radius: 3.8, label: "LEADERBOARD",      emoji: "🏆" },
-];
-
-// projected TV screen positions for iframe overlays
-const tvOverlays = ref<{ id: string; x: number; y: number; visible: boolean }[]>([
-	{ id: "twitch",      x: 0, y: 0, visible: false },
-	{ id: "leaderboard", x: 0, y: 0, visible: false },
-]);
-const nearTV = ref(false);
+let ensureRoomLoaded: ((room: RoomKey) => void) | null = null;
+let syncRoomVisibility: ((room: RoomKey) => void) | null = null;
 
 // ── OPEN / CLOSE SECTION ─────────────────────────────
 function openSection(sec: Section) {
@@ -63,13 +60,70 @@ function openSection(sec: Section) {
 function closeSection() {
 	activeSection.value = "none";
 	// Re-enter pointer lock so player can walk immediately
-	nextTick(() => { canvas.value?.requestPointerLock(); });
+	nextTick(() => {
+		canvas.value?.requestPointerLock();
+	});
+}
+
+function placePlayer(x: number, z: number, yaw: number) {
+	camera.position.set(x, 1.65, z);
+	euler.set(0, yaw, 0);
+	camera.quaternion.setFromEuler(euler);
+}
+
+async function enterRoom(room: RoomKey) {
+	if (isTeleporting.value) return;
+	isTeleporting.value = true;
+	teleportLabel.value =
+		room === "main"
+			? "Returning to the diner"
+			: `Entering ${room === "lore" ? "Lore Hall" : room === "fish" ? "Fish Freezer" : "Live Room"}`;
+	focusedLink.value = null;
+	focusedLinkLabel.value = null;
+	await new Promise(resolve => window.setTimeout(resolve, 520));
+	ensureRoomLoaded?.(room);
+	currentRoom.value = room;
+	syncRoomVisibility?.(room);
+	const spawn = ROOM_SPAWNS[room];
+	placePlayer(spawn.x, spawn.z, spawn.yaw);
+	await nextTick();
+	isTeleporting.value = false;
+	if (document.pointerLockElement !== canvas.value) {
+		canvas.value?.requestPointerLock();
+	}
 }
 
 // ── KEY E handler ────────────────────────────────────
 function handleInteract() {
-	if (!isLocked.value) return;
-	if (nearZone.value !== "none") openSection(nearZone.value as Section);
+	if (!isLocked.value || isTeleporting.value) return;
+	if (nearZone.value === "mac") {
+		openSection("mac");
+		return;
+	}
+	if (nearZone.value === "loreRoom") {
+		enterRoom("lore");
+		return;
+	}
+	if (nearZone.value === "fishRoom") {
+		enterRoom("fish");
+		return;
+	}
+	if (nearZone.value === "liveRoom") {
+		enterRoom("live");
+		return;
+	}
+	if (nearZone.value === "exitMain") {
+		enterRoom("main");
+		return;
+	}
+	if (nearZone.value !== "none") {
+		openSection(nearZone.value as Section);
+		return;
+	}
+	if (focusedLink.value) {
+		window.open(focusedLink.value, "_blank", "noopener noreferrer");
+		return;
+	}
 }
 
 onMounted(() => {
@@ -80,409 +134,1941 @@ onMounted(() => {
 	scene.fog = new THREE.FogExp2(0x120705, 0.019);
 	scene.background = new THREE.Color(0x120705);
 
-	camera = new THREE.PerspectiveCamera(72, el.clientWidth / el.clientHeight, 0.05, 80);
+	camera = new THREE.PerspectiveCamera(
+		72,
+		el.clientWidth / el.clientHeight,
+		0.05,
+		80
+	);
 	camera.position.set(0, 1.65, 7);
-	euler.set(0, 0, 0); // face INTO diner (-Z = toward counter/back wall)
+	euler.set(0, 0, 0);
 	camera.quaternion.setFromEuler(euler);
 
 	renderer = new THREE.WebGLRenderer({ canvas: el, antialias: true });
-	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // cap at 1.5 instead of 2
 	renderer.setSize(el.clientWidth, el.clientHeight);
+	// Use BasicShadowMap – far cheaper, good enough for diner scale
 	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+	renderer.shadowMap.type = THREE.BasicShadowMap;
+	renderer.outputColorSpace = THREE.SRGBColorSpace;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
-	renderer.toneMappingExposure = 1.15;
+	renderer.toneMappingExposure = 1.28;
 
-	const C = {
-		cream: 0xfff2c8, mustard: 0xe8a946, butter: 0xf6cf5d,
-		red: 0xfa4040, redDark: 0xc92828, pickle: 0x2f7f67,
-		ink: 0x25120e, chrome: 0xcccccc, neonPink: 0xff2255, neonBlue: 0x22aaff,
-	};
+	// ── KICK OFF HEAVY CONSTRUCTION AFTER LOADER HAS PAINTED ──
+	// Two rAF + setTimeout ensures the browser has painted the loader UI before
+	// we block the main thread building geometry.
+	requestAnimationFrame(() => {
+		requestAnimationFrame(() => {
+			window.setTimeout(() => buildScene(el), 0);
+		});
+	});
+});
 
-	const box = (w: number, h: number, d: number, color: number, rough = 0.6, metal = 0.0, ei = 0, ec = 0x000000) => {
-		const m = new THREE.Mesh(
-			new THREE.BoxGeometry(w, h, d),
-			new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, emissive: ec, emissiveIntensity: ei })
-		);
-		m.castShadow = true; m.receiveShadow = true; return m;
-	};
+function buildScene(el: HTMLCanvasElement) {
+	const C = DINER_PALETTE;
+
+	const gltfLoader = new GLTFLoader();
+	const {
+		box,
+		canvasTexture,
+		loadAssetTexture,
+		loadGlbProp,
+		makeAssetStandee,
+		makeGreaseSlick,
+		makeLayeredRelief,
+		roundedBox,
+		setCanvasNoise,
+		textureMaterial,
+	} = createSceneKit({
+		scene,
+		renderer,
+		gltfLoader,
+		palette: C,
+	});
 
 	// ── FLOOR ────────────────────────────────────────
-	const fc = document.createElement("canvas"); fc.width = 1024; fc.height = 1024;
+	const fc = document.createElement("canvas");
+	fc.width = 1024;
+	fc.height = 1024;
 	const fctx = fc.getContext("2d")!;
 	const TS = 64;
-	for (let r = 0; r < 16; r++) for (let c = 0; c < 16; c++) {
-		fctx.fillStyle = (r + c) % 2 === 0 ? "#ede4c4" : "#171008";
-		fctx.fillRect(c * TS, r * TS, TS, TS);
-		fctx.strokeStyle = "rgba(90,55,18,0.28)"; fctx.lineWidth = 2.5;
-		fctx.strokeRect(c * TS + 1, r * TS + 1, TS - 2, TS - 2);
-	}
-	([[120,200,55,0.14],[420,680,70,0.10],[750,300,45,0.12],[280,850,60,0.09]] as [number,number,number,number][]).forEach(([x,y,r,a]) => {
-		fctx.globalAlpha = a; fctx.fillStyle = "#2a1505";
-		fctx.beginPath(); fctx.ellipse(x, y, r, r * 0.4, 0.5, 0, Math.PI * 2); fctx.fill();
+	for (let r = 0; r < 16; r++)
+		for (let c = 0; c < 16; c++) {
+			fctx.fillStyle = (r + c) % 2 === 0 ? "#ede4c4" : "#171008";
+			fctx.fillRect(c * TS, r * TS, TS, TS);
+			fctx.strokeStyle = "rgba(90,55,18,0.28)";
+			fctx.lineWidth = 2.5;
+			fctx.strokeRect(c * TS + 1, r * TS + 1, TS - 2, TS - 2);
+		}
+	(
+		[
+			[120, 200, 55, 0.14],
+			[420, 680, 70, 0.1],
+			[750, 300, 45, 0.12],
+			[280, 850, 60, 0.09],
+		] as [number, number, number, number][]
+	).forEach(([x, y, r, a]) => {
+		fctx.globalAlpha = a;
+		fctx.fillStyle = "#2a1505";
+		fctx.beginPath();
+		fctx.ellipse(x, y, r, r * 0.4, 0.5, 0, Math.PI * 2);
+		fctx.fill();
 	});
 	fctx.globalAlpha = 1;
-	const floorTex = new THREE.CanvasTexture(fc);
-	floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(3, 3);
+	const floorTex = canvasTexture(fc);
+	floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+	floorTex.repeat.set(3, 3);
 	const floor = new THREE.Mesh(
 		new THREE.PlaneGeometry(28, 24),
-		new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.18, metalness: 0.12 })
+		new THREE.MeshStandardMaterial({
+			map: floorTex,
+			roughness: 0.18,
+			metalness: 0.12,
+		})
 	);
-	floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+	floor.rotation.x = -Math.PI / 2;
+	floor.receiveShadow = true;
+	scene.add(floor);
 
 	// ── SUBWAY TILE TEXTURE ──────────────────────────
 	const makeSubwayTex = () => {
-		const sc = document.createElement("canvas"); sc.width = 512; sc.height = 256;
+		const sc = document.createElement("canvas");
+		sc.width = 512;
+		sc.height = 256;
 		const s = sc.getContext("2d")!;
-		s.fillStyle = "#e8e2d0"; s.fillRect(0, 0, 512, 256);
-		const TW = 80, TH = 36;
+		s.fillStyle = "#e8e2d0";
+		s.fillRect(0, 0, 512, 256);
+		const TW = 80,
+			TH = 36;
 		for (let row = 0; row < 8; row++) {
 			const off = row % 2 === 0 ? 0 : TW / 2;
 			for (let col = -1; col < 8; col++) {
-				const x = col * TW + off, y = row * TH;
+				const x = col * TW + off,
+					y = row * TH;
 				const sh = 226 + Math.floor(Math.random() * 16);
-				s.fillStyle = `rgb(${sh},${sh-4},${sh-10})`; s.fillRect(x+2, y+2, TW-4, TH-4);
-				s.fillStyle = "rgba(255,255,255,0.22)"; s.fillRect(x+3, y+3, TW-7, 5);
+				s.fillStyle = `rgb(${sh},${sh - 4},${sh - 10})`;
+				s.fillRect(x + 2, y + 2, TW - 4, TH - 4);
+				s.fillStyle = "rgba(255,255,255,0.22)";
+				s.fillRect(x + 3, y + 3, TW - 7, 5);
 			}
 		}
-		const t = new THREE.CanvasTexture(sc);
-		t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 1); return t;
+		const t = canvasTexture(sc);
+		t.wrapS = t.wrapT = THREE.RepeatWrapping;
+		t.repeat.set(4, 1);
+		return t;
 	};
 	const subwayTex = makeSubwayTex();
 
 	// back wall
-	const bwL = new THREE.Mesh(new THREE.PlaneGeometry(28, 4.5), new THREE.MeshStandardMaterial({ map: subwayTex, roughness: 0.28, metalness: 0.06 }));
-	bwL.position.set(0, 2.25, -11.5); scene.add(bwL);
-	const bwU = new THREE.Mesh(new THREE.PlaneGeometry(28, 5.5), new THREE.MeshStandardMaterial({ color: C.redDark, roughness: 0.75 }));
-	bwU.position.set(0, 6.75, -11.5); scene.add(bwU);
+	const bwL = new THREE.Mesh(
+		new THREE.PlaneGeometry(28, 4.5),
+		new THREE.MeshStandardMaterial({
+			map: subwayTex,
+			roughness: 0.28,
+			metalness: 0.06,
+		})
+	);
+	bwL.position.set(0, 2.25, -11.5);
+	scene.add(bwL);
+	const bwU = new THREE.Mesh(
+		new THREE.PlaneGeometry(28, 5.5),
+		new THREE.MeshStandardMaterial({ color: C.redDark, roughness: 0.75 })
+	);
+	bwU.position.set(0, 6.75, -11.5);
+	scene.add(bwU);
 	const crBack = box(28.2, 0.14, 0.08, 0x110702, 0.45, 0.18);
-	crBack.position.set(0, 4.53, -11.45); scene.add(crBack);
+	crBack.position.set(0, 4.53, -11.45);
+	scene.add(crBack);
 
 	// side walls
-	for (const [sx, ry] of [[-14, Math.PI/2], [14, -Math.PI/2]] as [number,number][]) {
-		const swL = new THREE.Mesh(new THREE.PlaneGeometry(24, 4.5), new THREE.MeshStandardMaterial({ map: subwayTex, roughness: 0.28 }));
-		swL.rotation.y = ry; swL.position.set(sx, 2.25, -1); scene.add(swL);
-		const swU = new THREE.Mesh(new THREE.PlaneGeometry(24, 5.5), new THREE.MeshStandardMaterial({ color: sx < 0 ? 0x6e1212 : 0x5a1010, roughness: 0.8 }));
-		swU.rotation.y = ry; swU.position.set(sx, 6.75, -1); scene.add(swU);
+	for (const [sx, ry] of [
+		[-14, Math.PI / 2],
+		[14, -Math.PI / 2],
+	] as [number, number][]) {
+		const swL = new THREE.Mesh(
+			new THREE.PlaneGeometry(24, 4.5),
+			new THREE.MeshStandardMaterial({ map: subwayTex, roughness: 0.28 })
+		);
+		swL.rotation.y = ry;
+		swL.position.set(sx, 2.25, -1);
+		scene.add(swL);
+		const swU = new THREE.Mesh(
+			new THREE.PlaneGeometry(24, 5.5),
+			new THREE.MeshStandardMaterial({
+				color: sx < 0 ? 0x6e1212 : 0x5a1010,
+				roughness: 0.8,
+			})
+		);
+		swU.rotation.y = ry;
+		swU.position.set(sx, 6.75, -1);
+		scene.add(swU);
 		const cr = box(0.09, 0.14, 24.2, 0x110702, 0.45, 0.18);
-		cr.position.set(sx + (sx < 0 ? 0.05 : -0.05), 4.53, -1); scene.add(cr);
+		cr.position.set(sx + (sx < 0 ? 0.05 : -0.05), 4.53, -1);
+		scene.add(cr);
 	}
 
 	// ceiling
-	const cc = document.createElement("canvas"); cc.width = 256; cc.height = 256;
+	const cc = document.createElement("canvas");
+	cc.width = 256;
+	cc.height = 256;
 	const cctx = cc.getContext("2d")!;
-	cctx.fillStyle = "#160d07"; cctx.fillRect(0, 0, 256, 256);
-	cctx.strokeStyle = "rgba(55,28,8,0.9)"; cctx.lineWidth = 2;
-	for (let i = 0; i <= 4; i++) { cctx.beginPath(); cctx.moveTo(i*64,0); cctx.lineTo(i*64,256); cctx.stroke(); cctx.beginPath(); cctx.moveTo(0,i*64); cctx.lineTo(256,i*64); cctx.stroke(); }
-	const ceilTex = new THREE.CanvasTexture(cc);
-	ceilTex.wrapS = ceilTex.wrapT = THREE.RepeatWrapping; ceilTex.repeat.set(6, 5);
-	const ceil = new THREE.Mesh(new THREE.PlaneGeometry(28, 24), new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.95 }));
-	ceil.rotation.x = Math.PI / 2; ceil.position.set(0, 8.5, -1); scene.add(ceil);
+	cctx.fillStyle = "#160d07";
+	cctx.fillRect(0, 0, 256, 256);
+	cctx.strokeStyle = "rgba(55,28,8,0.9)";
+	cctx.lineWidth = 2;
+	for (let i = 0; i <= 4; i++) {
+		cctx.beginPath();
+		cctx.moveTo(i * 64, 0);
+		cctx.lineTo(i * 64, 256);
+		cctx.stroke();
+		cctx.beginPath();
+		cctx.moveTo(0, i * 64);
+		cctx.lineTo(256, i * 64);
+		cctx.stroke();
+	}
+	const ceilTex = canvasTexture(cc);
+	ceilTex.wrapS = ceilTex.wrapT = THREE.RepeatWrapping;
+	ceilTex.repeat.set(6, 5);
+	const ceil = new THREE.Mesh(
+		new THREE.PlaneGeometry(28, 24),
+		new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.95 })
+	);
+	ceil.rotation.x = Math.PI / 2;
+	ceil.position.set(0, 8.5, -1);
+	scene.add(ceil);
 
 	// ── COUNTER ──────────────────────────────────────
 	const counter = box(12, 1.12, 1.4, 0x150908, 0.65);
-	counter.position.set(0, 0.56, -8.8); scene.add(counter);
-	const marbC = document.createElement("canvas"); marbC.width = 512; marbC.height = 128;
+	counter.position.set(0, 0.56, -8.8);
+	scene.add(counter);
+	const marbC = document.createElement("canvas");
+	marbC.width = 512;
+	marbC.height = 128;
 	const mc = marbC.getContext("2d")!;
-	mc.fillStyle = "#0d0705"; mc.fillRect(0, 0, 512, 128);
-	mc.strokeStyle = "rgba(70,42,18,0.55)"; mc.lineWidth = 1.5;
-	for (let v = 0; v < 8; v++) { mc.beginPath(); mc.moveTo(Math.random()*512,0); mc.bezierCurveTo(Math.random()*512,40,Math.random()*512,88,Math.random()*512,128); mc.stroke(); }
-	const ctop = new THREE.Mesh(new THREE.BoxGeometry(12.18, 0.1, 1.52), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(marbC), roughness: 0.07, metalness: 0.45 }));
-	ctop.position.set(0, 1.17, -8.8); ctop.castShadow = true; scene.add(ctop);
+	mc.fillStyle = "#0d0705";
+	mc.fillRect(0, 0, 512, 128);
+	mc.strokeStyle = "rgba(70,42,18,0.55)";
+	mc.lineWidth = 1.5;
+	for (let v = 0; v < 8; v++) {
+		mc.beginPath();
+		mc.moveTo(Math.random() * 512, 0);
+		mc.bezierCurveTo(
+			Math.random() * 512,
+			40,
+			Math.random() * 512,
+			88,
+			Math.random() * 512,
+			128
+		);
+		mc.stroke();
+	}
+	const ctop = new THREE.Mesh(
+		new THREE.BoxGeometry(12.18, 0.1, 1.52),
+		new THREE.MeshStandardMaterial({
+			map: canvasTexture(marbC),
+			roughness: 0.07,
+			metalness: 0.45,
+		})
+	);
+	ctop.position.set(0, 1.17, -8.8);
+	ctop.castShadow = true;
+	scene.add(ctop);
 	const nosing = box(12.16, 0.07, 0.05, C.mustard, 0.22, 0.45);
-	nosing.position.set(0, 1.12, -8.05); scene.add(nosing);
+	nosing.position.set(0, 1.12, -8.05);
+	scene.add(nosing);
+	const griddle = box(4.25, 0.055, 0.95, 0x20120b, 0.18, 0.65, 0.05, 0xffaa44);
+	griddle.position.set(0.1, 1.24, -8.58);
+	scene.add(griddle);
+	const griddleSlick = new THREE.Mesh(
+		new THREE.PlaneGeometry(3.4, 0.74),
+		new THREE.MeshStandardMaterial({
+			map: makeGreaseSlick(512, 160, "#7a2f05", 0.7),
+			transparent: true,
+			roughness: 0.05,
+			metalness: 0.35,
+			depthWrite: false,
+		})
+	);
+	griddleSlick.rotation.x = -Math.PI / 2;
+	griddleSlick.position.set(0.25, 1.275, -8.52);
+	scene.add(griddleSlick);
+	const heatLight = new THREE.PointLight(0xff6622, 0.65, 3.2, 2.2);
+	heatLight.position.set(0.1, 1.75, -8.5);
+	scene.add(heatLight);
 	const reg = box(0.6, 0.55, 0.4, 0x0a0705, 0.4, 0.3);
-	reg.position.set(-4.5, 1.44, -8.85); scene.add(reg);
+	reg.position.set(-4.5, 1.44, -8.85);
+	scene.add(reg);
 	const regScreen = box(0.44, 0.3, 0.02, 0x001122, 0.2, 0.1, 1.5, 0x002244);
-	regScreen.position.set(-4.5, 1.6, -8.65); scene.add(regScreen);
+	regScreen.position.set(-4.5, 1.6, -8.65);
+	scene.add(regScreen);
 	const regGlow = new THREE.PointLight(0x0044aa, 0.3, 1.5, 2);
-	regGlow.position.set(-4.5, 1.65, -8.5); scene.add(regGlow);
+	regGlow.position.set(-4.5, 1.65, -8.5);
+	scene.add(regGlow);
 	const napkin = box(0.08, 0.28, 0.22, C.chrome, 0.1, 0.9);
-	napkin.position.set(2.5, 1.35, -8.8); scene.add(napkin);
+	napkin.position.set(2.5, 1.35, -8.8);
+	scene.add(napkin);
+	[
+		[-2.25, C.red],
+		[-1.95, C.mustard],
+		[2.1, C.pickle],
+		[2.35, C.cream],
+	].forEach(([x, color]) => {
+		const bottle = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.08, 0.1, 0.42, 12),
+			new THREE.MeshStandardMaterial({
+				color: color as number,
+				roughness: 0.36,
+				metalness: 0.04,
+			})
+		);
+		bottle.position.set(x as number, 1.46, -8.38);
+		bottle.castShadow = true;
+		scene.add(bottle);
+	});
 
 	// ── STOOLS ───────────────────────────────────────
 	for (let i = -4.5; i <= 4.5; i += 1.5) {
-		const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.28, 0.1, 16), new THREE.MeshStandardMaterial({ color: C.red, roughness: 0.45 }));
-		seat.position.set(i, 0.9, -7.4); seat.castShadow = true; scene.add(seat);
-		const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.9, 8), new THREE.MeshStandardMaterial({ color: C.chrome, roughness: 0.08, metalness: 0.96 }));
-		stem.position.set(i, 0.45, -7.4); scene.add(stem);
-		const base = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.05, 16), new THREE.MeshStandardMaterial({ color: C.chrome, roughness: 0.08, metalness: 0.96 }));
-		base.position.set(i, 0.025, -7.4); scene.add(base);
-		const rest = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.017, 8, 20), new THREE.MeshStandardMaterial({ color: C.chrome, roughness: 0.08, metalness: 0.96 }));
-		rest.rotation.x = Math.PI / 2; rest.position.set(i, 0.3, -7.4); scene.add(rest);
+		const seat = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.3, 0.28, 0.1, 16),
+			new THREE.MeshStandardMaterial({ color: C.red, roughness: 0.45 })
+		);
+		seat.position.set(i, 0.9, -7.4);
+		seat.castShadow = true;
+		scene.add(seat);
+		const stem = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.022, 0.022, 0.9, 8),
+			new THREE.MeshStandardMaterial({
+				color: C.chrome,
+				roughness: 0.08,
+				metalness: 0.96,
+			})
+		);
+		stem.position.set(i, 0.45, -7.4);
+		scene.add(stem);
+		const base = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.26, 0.3, 0.05, 16),
+			new THREE.MeshStandardMaterial({
+				color: C.chrome,
+				roughness: 0.08,
+				metalness: 0.96,
+			})
+		);
+		base.position.set(i, 0.025, -7.4);
+		scene.add(base);
+		const rest = new THREE.Mesh(
+			new THREE.TorusGeometry(0.18, 0.017, 8, 20),
+			new THREE.MeshStandardMaterial({
+				color: C.chrome,
+				roughness: 0.08,
+				metalness: 0.96,
+			})
+		);
+		rest.rotation.x = Math.PI / 2;
+		rest.position.set(i, 0.3, -7.4);
+		scene.add(rest);
 	}
+
+	// ── MAC NPC + COUNTER CHARACTER PIECES ───────────
+	const macStandee = makeAssetStandee(
+		GREASY_ASSETS.maclings.greasyHappy,
+		-0.72,
+		2.58,
+		-9.9,
+		2.15,
+		3.7
+	);
+	macStandee.renderOrder = 2;
+	const macBase = roundedBox(1.32, 0.08, 0.5, 0x2a1208, 0.04, 0.5, 0.22);
+	macBase.position.set(-0.72, 1.2, -9.75);
+	scene.add(macBase);
+	const macGlow = new THREE.PointLight(0xffc077, 1.1, 4.2, 1.6);
+	macGlow.position.set(-0.75, 3.15, -8.8);
+	scene.add(macGlow);
+
+	const talkC = document.createElement("canvas");
+	talkC.width = 512;
+	talkC.height = 180;
+	const talkCtx = talkC.getContext("2d")!;
+	talkCtx.fillStyle = "#130806";
+	talkCtx.fillRect(0, 0, 512, 180);
+	setCanvasNoise(talkCtx, 512, 180, 0.12);
+	talkCtx.fillStyle = "#e8a946";
+	talkCtx.fillRect(16, 16, 86, 132);
+	talkCtx.fillStyle = "#25120e";
+	talkCtx.font = "bold 90px Impact, sans-serif";
+	talkCtx.textAlign = "center";
+	talkCtx.fillText("E", 59, 112);
+	talkCtx.fillStyle = "#fff2c8";
+	talkCtx.font = "bold 58px Impact, sans-serif";
+	talkCtx.textAlign = "left";
+	talkCtx.fillText("TALK", 128, 92);
+	talkCtx.fillStyle = "#fa4040";
+	talkCtx.font = "bold 24px Arial, sans-serif";
+	talkCtx.fillText("ASK FOR EXTRA SAUCE", 132, 132);
+	talkCtx.strokeStyle = "#e8a946";
+	talkCtx.lineWidth = 6;
+	talkCtx.strokeRect(8, 8, 496, 164);
+	const talkTex = canvasTexture(talkC);
+	const talkSign = new THREE.Mesh(
+		new THREE.PlaneGeometry(1.55, 0.54),
+		textureMaterial(talkTex, {
+			roughness: 0.62,
+			emissive: C.mustard,
+			emissiveMap: talkTex,
+			emissiveIntensity: 0.22,
+		})
+	);
+	talkSign.position.set(0.85, 3.55, -9.65);
+	scene.add(talkSign);
+
+	const maclingCards = [
+		[GREASY_ASSETS.maclings.grumbsUp, -3.35, -10.72, 0.62, 0.62],
+		[GREASY_ASSETS.maclings.stare, 3.2, -10.72, 0.62, 0.62],
+		[GREASY_ASSETS.maclings.caught, 4.05, -10.72, 0.72, 0.62],
+	] as [string, number, number, number, number][];
+	maclingCards.forEach(([path, x, z, w, h]) => {
+		const card = makeAssetStandee(path, x, 2.05, z, w, h);
+		card.position.z = z;
+	});
+
+	const addGgModelFallback = () => {
+		const fallback = roundedBox(0.7, 0.42, 0.18, C.mustard, 0.08, 0.4, 0.1);
+		fallback.position.set(4.6, 1.42, -8.15);
+		scene.add(fallback);
+	};
+	const loadGgModel = async () => {
+		try {
+			const { STLLoader } = await import("three/addons/loaders/STLLoader.js");
+			new STLLoader().load(
+				GREASY_ASSETS.models.ggStl,
+				geometry => {
+					geometry.computeVertexNormals();
+					geometry.center();
+					const ggModel = new THREE.Mesh(
+						geometry,
+						new THREE.MeshStandardMaterial({
+							color: C.mustard,
+							roughness: 0.36,
+							metalness: 0.18,
+							emissive: C.redDark,
+							emissiveIntensity: 0.12,
+						})
+					);
+					ggModel.scale.setScalar(0.006);
+					ggModel.rotation.set(-Math.PI / 2, 0, -0.18);
+					ggModel.position.set(4.6, 1.42, -8.15);
+					ggModel.castShadow = true;
+					ggModel.receiveShadow = true;
+					scene.add(ggModel);
+				},
+				undefined,
+				addGgModelFallback
+			);
+		} catch {
+			addGgModelFallback();
+		}
+	};
+	window.setTimeout(loadGgModel, 900);
 
 	// ── NEON SIGN ────────────────────────────────────
 	const signFrame = box(9.5, 2.0, 0.12, 0x080403, 0.65, 0.35);
-	signFrame.position.set(0, 7.2, -11.38); scene.add(signFrame);
-	const nSignC = document.createElement("canvas"); nSignC.width = 2048; nSignC.height = 340;
+	signFrame.position.set(0, 7.2, -11.38);
+	scene.add(signFrame);
+	const nSignC = document.createElement("canvas");
+	nSignC.width = 2048;
+	nSignC.height = 340;
 	const nsc = nSignC.getContext("2d")!;
-	nsc.fillStyle = "#060302"; nsc.fillRect(0, 0, 2048, 340);
+	nsc.fillStyle = "#060302";
+	nsc.fillRect(0, 0, 2048, 340);
 	for (let p = 0; p < 4; p++) {
-		nsc.shadowColor = p < 2 ? "#f6cf5d" : "#ff8800"; nsc.shadowBlur = 90 - p * 18;
-		nsc.fillStyle = p === 3 ? "#ffffff" : "#f6cf5d"; nsc.globalAlpha = p === 3 ? 0.55 : 1;
+		nsc.shadowColor = p < 2 ? "#f6cf5d" : "#ff8800";
+		nsc.shadowBlur = 90 - p * 18;
+		nsc.fillStyle = p === 3 ? "#ffffff" : "#f6cf5d";
+		nsc.globalAlpha = p === 3 ? 0.55 : 1;
 		nsc.font = `bold ${220 - p}px 'Arial Black', Impact, sans-serif`;
-		nsc.textAlign = "center"; nsc.textBaseline = "middle";
+		nsc.textAlign = "center";
+		nsc.textBaseline = "middle";
 		nsc.fillText("GREASY GANG", 1024, 170);
 	}
 	nsc.globalAlpha = 1;
-	const neonTex = new THREE.CanvasTexture(nSignC);
-	const neonMesh = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 1.8),
-		new THREE.MeshStandardMaterial({ map: neonTex, transparent: true, roughness: 1, emissive: 0xffd060, emissiveMap: neonTex, emissiveIntensity: 2.8 }));
-	neonMesh.position.set(0, 7.2, -11.3); scene.add(neonMesh);
+	const neonTex = canvasTexture(nSignC);
+	const neonMesh = new THREE.Mesh(
+		new THREE.PlaneGeometry(9.2, 1.8),
+		new THREE.MeshStandardMaterial({
+			map: neonTex,
+			transparent: true,
+			roughness: 1,
+			emissive: 0xffd060,
+			emissiveMap: neonTex,
+			emissiveIntensity: 2.8,
+		})
+	);
+	neonMesh.position.set(0, 7.2, -11.3);
+	scene.add(neonMesh);
 	const neonLight = new THREE.PointLight(0xf6cf5d, 3.5, 10, 1.4);
-	neonLight.position.set(0, 7, -10.5); scene.add(neonLight);
+	neonLight.position.set(0, 7, -10.5);
+	scene.add(neonLight);
 
 	// ── WALL NEON TUBES ──────────────────────────────
-	const makeWallNeon = (text: string, hexColor: number, x: number, y: number, z: number, ry: number) => {
-		const wc = document.createElement("canvas"); wc.width = 1024; wc.height = 160;
+	const makeWallNeon = (
+		text: string,
+		hexColor: number,
+		x: number,
+		y: number,
+		z: number,
+		ry: number
+	) => {
+		const wc = document.createElement("canvas");
+		wc.width = 1024;
+		wc.height = 160;
 		const wctx = wc.getContext("2d")!;
 		const hex = "#" + hexColor.toString(16).padStart(6, "0");
-		wctx.shadowColor = hex; wctx.shadowBlur = 48;
-		wctx.fillStyle = hex; wctx.font = "bold 90px 'Arial Black', Impact, sans-serif";
-		wctx.textAlign = "center"; wctx.textBaseline = "middle"; wctx.fillText(text, 512, 80);
-		wctx.shadowBlur = 20; wctx.fillStyle = "white"; wctx.globalAlpha = 0.3; wctx.fillText(text, 512, 80); wctx.globalAlpha = 1;
-		const tex = new THREE.CanvasTexture(wc);
-		const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.58),
-			new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, emissive: hexColor, emissiveMap: tex, emissiveIntensity: 2.5, side: THREE.DoubleSide }));
-		mesh.position.set(x, y, z); mesh.rotation.y = ry; scene.add(mesh);
+		wctx.shadowColor = hex;
+		wctx.shadowBlur = 48;
+		wctx.fillStyle = hex;
+		let neonFont = 90;
+		wctx.font = `bold ${neonFont}px 'Arial Black', Impact, sans-serif`;
+		while (wctx.measureText(text).width > 900 && neonFont > 44) {
+			neonFont -= 4;
+			wctx.font = `bold ${neonFont}px 'Arial Black', Impact, sans-serif`;
+		}
+		wctx.textAlign = "center";
+		wctx.textBaseline = "middle";
+		wctx.fillText(text, 512, 80);
+		wctx.shadowBlur = 20;
+		wctx.fillStyle = "white";
+		wctx.globalAlpha = 0.3;
+		wctx.fillText(text, 512, 80);
+		wctx.globalAlpha = 1;
+		const tex = canvasTexture(wc);
+		const mesh = new THREE.Mesh(
+			new THREE.PlaneGeometry(Math.max(3.6, text.length * 0.24), 0.58),
+			new THREE.MeshStandardMaterial({
+				map: tex,
+				transparent: true,
+				roughness: 1,
+				emissive: hexColor,
+				emissiveMap: tex,
+				emissiveIntensity: 2.5,
+				side: THREE.DoubleSide,
+			})
+		);
+		mesh.position.set(x, y, z);
+		mesh.rotation.y = ry;
+		scene.add(mesh);
 		const light = new THREE.PointLight(hexColor, 1.0, 4.5, 2);
-		light.position.set(x + Math.sin(ry) * 0.4, y, z + Math.cos(ry) * 0.4); scene.add(light);
+		light.position.set(x + Math.sin(ry) * 0.4, y, z + Math.cos(ry) * 0.4);
+		scene.add(light);
 		return { mesh, light };
 	};
-	const openSign  = makeWallNeon("OPEN 24/7",          C.neonPink, -13.5, 4.4,  1.5, Math.PI / 2);
-	const greaseTube = makeWallNeon("GREASE IS THE WORD", C.neonBlue,  13.4, 4.4, -2.5, -Math.PI / 2);
+	const openSign = makeWallNeon(
+		"OPEN 24/7",
+		C.neonPink,
+		-13.5,
+		4.4,
+		1.5,
+		Math.PI / 2
+	);
+	const greaseTube = makeWallNeon(
+		"GREASE IS THE WORD",
+		C.neonBlue,
+		13.4,
+		5.65,
+		4.95,
+		-Math.PI / 2
+	);
 
 	// ── ZONE INDICATOR GLOWS on floor ────────────────
 	const makeZoneGlow = (x: number, z: number, color: number) => {
-		const gC = document.createElement("canvas"); gC.width = 256; gC.height = 256;
+		const gC = document.createElement("canvas");
+		gC.width = 256;
+		gC.height = 256;
 		const gctx = gC.getContext("2d")!;
 		const g = gctx.createRadialGradient(128, 128, 8, 128, 128, 128);
 		const hex = "#" + color.toString(16).padStart(6, "0");
-		g.addColorStop(0, hex + "55"); g.addColorStop(0.5, hex + "22"); g.addColorStop(1, "transparent");
-		gctx.fillStyle = g; gctx.fillRect(0, 0, 256, 256);
+		g.addColorStop(0, hex + "55");
+		g.addColorStop(0.5, hex + "22");
+		g.addColorStop(1, "transparent");
+		gctx.fillStyle = g;
+		gctx.fillRect(0, 0, 256, 256);
 		const m = new THREE.Mesh(
 			new THREE.PlaneGeometry(5, 5),
-			new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(gC), transparent: true, roughness: 0.1, metalness: 0.2, depthWrite: false })
+			new THREE.MeshStandardMaterial({
+				map: canvasTexture(gC),
+				transparent: true,
+				roughness: 0.1,
+				metalness: 0.2,
+				depthWrite: false,
+			})
 		);
-		m.rotation.x = -Math.PI / 2; m.position.set(x, 0.01, z); scene.add(m); return m;
+		m.rotation.x = -Math.PI / 2;
+		m.position.set(x, 0.01, z);
+		scene.add(m);
+		return m;
 	};
-	const menuGlow  = makeZoneGlow(0,     -7.5, 0xe8a946);
-	const aboutGlow = makeZoneGlow(-10.5, -6.5, 0xff2255);
-	const lbGlow    = makeZoneGlow(10.5,  -6.5, 0x22aaff);
+	const menuGlow = makeZoneGlow(0, -7.5, 0xe8a946);
+	const aboutGlow = makeZoneGlow(-12.2, -2.0, 0xff2255);
+	const lbGlow = makeZoneGlow(10.5, -6.5, 0x22aaff);
+	const jukeboxGlow = makeZoneGlow(-11.5, -9.7, 0xff6600);
+	const loreGlow = makeZoneGlow(-12.6, 2.0, 0xfa4040);
+	const fishRoomGlow = makeZoneGlow(12.6, 5.9, 0x89d8c8);
+	const liveRoomGlow = makeZoneGlow(12.6, 0.4, 0x22aaff);
 
 	// ── INTERACTIVE 3D SOCIAL LINK BUTTONS on back wall ─
 	// These are real clickable 3D planes – no overlay needed, walk up & click
-	const socialLinks: { mesh: THREE.Mesh; href: string }[] = [];
-	const BTN_Y = 3.8; // eye-level on back wall
-	const BTN_Z = -11.22; // just off the wall face
+	const socialLinks: {
+		hitbox: THREE.Mesh;
+		visual: THREE.Mesh;
+		href: string;
+		label: string;
+	}[] = [];
+	const SOCIAL_Y = 5.02;
+	const SOCIAL_Z = -11.22;
+	const SOCIAL_X_START = -4.65;
 	props.buttons.forEach((btn, i) => {
-		const bx = -9 + i * 3; // spread 7 buttons from x=-9 to x=9 (3 units apart)
+		const bx = SOCIAL_X_START + i * 1.55;
 		// canvas texture for this button
-		const bC = document.createElement("canvas"); bC.width = 512; bC.height = 256;
+		const bC = document.createElement("canvas");
+		bC.width = 512;
+		bC.height = 256;
 		const bctx = bC.getContext("2d")!;
-		// dark base
-		bctx.fillStyle = "#100806"; bctx.fillRect(0, 0, 512, 256);
-		// accent left stripe (platform color)
-		bctx.fillStyle = btn.color; bctx.fillRect(0, 0, 14, 256);
-		// outer border
-		bctx.strokeStyle = btn.color; bctx.lineWidth = 3; bctx.strokeRect(2, 2, 508, 252);
-		// inner dim border
-		bctx.strokeStyle = "rgba(255,242,200,0.12)"; bctx.lineWidth = 1; bctx.strokeRect(18, 18, 476, 220);
-		// platform color glow BG on left
-		bctx.fillStyle = btn.color + "22"; bctx.fillRect(14, 0, 80, 256);
-		// icon area background
-		bctx.fillStyle = btn.color; bctx.fillRect(20, 50, 70, 70);
-		// platform name (large)
-		bctx.fillStyle = "#fff2c8"; bctx.font = "bold 72px Impact, sans-serif"; bctx.textAlign = "left";
+		bctx.fillStyle = "#100806";
+		bctx.fillRect(0, 0, 512, 256);
+		bctx.fillStyle = btn.color;
+		bctx.fillRect(0, 0, 14, 256);
+		bctx.strokeStyle = btn.color;
+		bctx.lineWidth = 3;
+		bctx.strokeRect(2, 2, 508, 252);
+		bctx.strokeStyle = "rgba(255,242,200,0.12)";
+		bctx.lineWidth = 1;
+		bctx.strokeRect(18, 18, 476, 220);
+		bctx.fillStyle = btn.color + "22";
+		bctx.fillRect(14, 0, 80, 256);
+		bctx.fillStyle = btn.color;
+		bctx.fillRect(20, 50, 70, 70);
+		bctx.fillStyle = "#fff2c8";
+		bctx.font = "bold 72px Impact, sans-serif";
+		bctx.textAlign = "left";
 		bctx.fillText(btn.text.toUpperCase(), 105, 148);
-		// tag badge
-		bctx.fillStyle = btn.color; bctx.fillRect(105, 162, bctx.measureText(btn.tag.toUpperCase()).width + 20, 36);
-		bctx.fillStyle = "white"; bctx.font = "bold 24px Impact, sans-serif";
-		bctx.fillText(btn.tag.toUpperCase(), 115, 190);
-		// number
-		bctx.fillStyle = "rgba(255,242,200,0.25)"; bctx.font = "bold 48px Impact"; bctx.textAlign = "right";
-		bctx.fillText(String(i + 1).padStart(2, "0"), 498, 56);
-		// "→ click" hint
-		bctx.fillStyle = "rgba(255,242,200,0.28)"; bctx.font = "20px Arial"; bctx.textAlign = "right";
-		bctx.fillText("→  CLICK", 498, 240);
-		const btnFrame = box(2.6, 1.4, 0.07, 0x0a0604, 0.8);
-		btnFrame.position.set(bx, BTN_Y, BTN_Z - 0.04); scene.add(btnFrame);
-		const btnPlane = new THREE.Mesh(
-			new THREE.PlaneGeometry(2.4, 1.2),
-			new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(bC), roughness: 0.5, emissive: new THREE.Color(btn.color).multiplyScalar(0.18), emissiveIntensity: 1.0 })
+		bctx.fillStyle = btn.color;
+		bctx.fillRect(
+			105,
+			162,
+			bctx.measureText(btn.tag.toUpperCase()).width + 20,
+			36
 		);
-		btnPlane.position.set(bx, BTN_Y, BTN_Z); scene.add(btnPlane);
-		socialLinks.push({ mesh: btnPlane, href: btn.href });
+		bctx.fillStyle = "white";
+		bctx.font = "bold 24px Impact, sans-serif";
+		bctx.fillText(btn.tag.toUpperCase(), 115, 190);
+		bctx.fillStyle = "rgba(255,242,200,0.25)";
+		bctx.font = "bold 48px Impact";
+		bctx.textAlign = "right";
+		bctx.fillText(String(i + 1).padStart(2, "0"), 498, 56);
+		const tex = canvasTexture(bC);
+		const btnFrame = box(1.38, 0.76, 0.07, 0x0a0604, 0.8);
+		btnFrame.position.set(bx, SOCIAL_Y, SOCIAL_Z - 0.04);
+		scene.add(btnFrame);
+		const btnPlane = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.27, 0.66),
+			textureMaterial(tex, {
+				roughness: 0.5,
+				emissive: new THREE.Color(btn.color).multiplyScalar(0.2),
+				emissiveMap: tex,
+				emissiveIntensity: 0.9,
+			})
+		);
+		btnPlane.position.set(bx, SOCIAL_Y, SOCIAL_Z);
+		scene.add(btnPlane);
+		const hitbox = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.38, 0.76),
+			new THREE.MeshBasicMaterial({
+				transparent: true,
+				opacity: 0,
+				depthWrite: false,
+			})
+		);
+		hitbox.position.set(bx, SOCIAL_Y, SOCIAL_Z + 0.03);
+		hitbox.userData.href = btn.href;
+		hitbox.userData.label = btn.text;
+		scene.add(hitbox);
+		socialLinks.push({
+			hitbox,
+			visual: btnPlane,
+			href: btn.href,
+			label: btn.text,
+		});
 		// subtle glow
-		const btnLight = new THREE.PointLight(new THREE.Color(btn.color).getHex(), 0.4, 2.5, 2);
-		btnLight.position.set(bx, BTN_Y, BTN_Z + 0.5); scene.add(btnLight);
+		const btnLight = new THREE.PointLight(
+			new THREE.Color(btn.color).getHex(),
+			0.4,
+			2.5,
+			2
+		);
+		btnLight.position.set(bx, SOCIAL_Y, SOCIAL_Z + 0.5);
+		scene.add(btnLight);
 	});
 
 	// Divider strip between sign and buttons
-	const divStrip = box(22, 0.08, 0.06, 0xe8a946, 0.3, 0.4);
-	divStrip.position.set(0, BTN_Y + 0.75, BTN_Z); scene.add(divStrip);
-	const divStrip2 = box(22, 0.08, 0.06, 0xe8a946, 0.3, 0.4);
-	divStrip2.position.set(0, BTN_Y - 0.75, BTN_Z); scene.add(divStrip2);
+	const divStrip = box(11.4, 0.055, 0.06, 0xe8a946, 0.3, 0.4);
+	divStrip.position.set(0, SOCIAL_Y + 0.44, SOCIAL_Z);
+	scene.add(divStrip);
+	const divStrip2 = box(11.4, 0.055, 0.06, 0xe8a946, 0.3, 0.4);
+	divStrip2.position.set(0, SOCIAL_Y - 0.44, SOCIAL_Z);
+	scene.add(divStrip2);
 
 	// ── BACK WALL MURALS (fill empty sides of back wall) ─
-	const makeMural = (x: number, text1: string, text2: string, color1: string, color2: string) => {
-		const mC = document.createElement("canvas"); mC.width = 480; mC.height = 560;
+	const makeMural = (
+		x: number,
+		text1: string,
+		text2: string,
+		color1: string,
+		color2: string
+	) => {
+		const mC = document.createElement("canvas");
+		mC.width = 480;
+		mC.height = 560;
 		const mctx = mC.getContext("2d")!;
 		// background
-		mctx.fillStyle = "#1a0808"; mctx.fillRect(0,0,480,560);
+		mctx.fillStyle = "#1a0808";
+		mctx.fillRect(0, 0, 480, 560);
 		// paint strokes effect
 		for (let stroke = 0; stroke < 6; stroke++) {
-			mctx.fillStyle = `rgba(${40+stroke*5},${10},${10},0.18)`;
+			mctx.fillStyle = `rgba(${40 + stroke * 5},${10},${10},0.18)`;
 			mctx.fillRect(0, stroke * 90, 480, 95);
 		}
 		// outer frame
-		mctx.strokeStyle = color1; mctx.lineWidth = 5; mctx.strokeRect(8,8,464,544);
-		mctx.strokeStyle = "rgba(255,242,200,0.2)"; mctx.lineWidth = 1.5; mctx.strokeRect(16,16,448,528);
+		mctx.strokeStyle = color1;
+		mctx.lineWidth = 5;
+		mctx.strokeRect(8, 8, 464, 544);
+		mctx.strokeStyle = "rgba(255,242,200,0.2)";
+		mctx.lineWidth = 1.5;
+		mctx.strokeRect(16, 16, 448, 528);
 		// main text
-		mctx.shadowColor = color1; mctx.shadowBlur = 30;
-		mctx.fillStyle = color1; mctx.font = "bold 88px Impact, sans-serif"; mctx.textAlign = "center";
+		mctx.shadowColor = color1;
+		mctx.shadowBlur = 30;
+		mctx.fillStyle = color1;
+		mctx.font = "bold 88px Impact, sans-serif";
+		mctx.textAlign = "center";
 		mctx.fillText(text1, 240, 200);
 		mctx.shadowBlur = 0;
-		mctx.fillStyle = color2; mctx.font = "bold 72px Impact, sans-serif";
+		mctx.fillStyle = color2;
+		mctx.font = "bold 72px Impact, sans-serif";
 		mctx.fillText(text2, 240, 310);
-		mctx.fillStyle = "rgba(255,242,200,0.3)"; mctx.font = "italic 26px serif";
+		mctx.fillStyle = "rgba(255,242,200,0.3)";
+		mctx.font = "italic 26px serif";
 		mctx.fillText("greasygang.co", 240, 500);
-		const mfr = box(2.8, 3.3, 0.08, 0x100606, 0.8); mfr.position.set(x, 6.2, -11.38); scene.add(mfr);
-		const mm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.1), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(mC), roughness: 0.8, emissive: 0x0a0404, emissiveIntensity: 0.25 }));
-		mm.position.set(x, 6.2, -11.3); scene.add(mm);
+		const mfr = box(2.8, 3.3, 0.08, 0x100606, 0.8);
+		mfr.position.set(x, 6.2, -11.38);
+		scene.add(mfr);
+		const mm = new THREE.Mesh(
+			new THREE.PlaneGeometry(2.6, 3.1),
+			textureMaterial(canvasTexture(mC), {
+				roughness: 0.8,
+				emissive: 0x0a0404,
+				emissiveIntensity: 0.25,
+			})
+		);
+		mm.position.set(x, 6.2, -11.3);
+		scene.add(mm);
 	};
 	makeMural(-11.5, "OPEN", "LATE", "#fa4040", "#e8a946");
-	makeMural( 11.5, "EST.", "2019", "#e8a946", "#fff2c8");
+	makeMural(11.5, "EST.", "2019", "#e8a946", "#fff2c8");
 
 	// ── HANGING LAMPS ────────────────────────────────
 	const lampLights: THREE.PointLight[] = [];
-	[-4.5, 0, 4.5].forEach(lx => {
-		const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x0a0a0a }));
-		cord.position.set(lx, 7.0, -7.0); scene.add(cord);
-		const shade = new THREE.Mesh(new THREE.ConeGeometry(0.65, 0.75, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0x0d0d0d, side: THREE.DoubleSide, roughness: 0.35, metalness: 0.65 }));
-		shade.rotation.x = Math.PI; shade.position.set(lx, 5.38, -7.0); shade.castShadow = true; scene.add(shade);
-		const ring = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.022, 6, 20), new THREE.MeshStandardMaterial({ color: C.chrome, roughness: 0.08, metalness: 0.96 }));
-		ring.position.set(lx, 5.04, -7.0); scene.add(ring);
-		const disc = new THREE.Mesh(new THREE.CircleGeometry(0.35, 20), new THREE.MeshStandardMaterial({ color: C.butter, emissive: C.butter, emissiveIntensity: 6, roughness: 1 }));
-		disc.rotation.x = Math.PI / 2; disc.position.set(lx, 5.02, -7.0); scene.add(disc);
-		const pl = new THREE.PointLight(0xffcc66, 4.0, 9, 1.6);
-		pl.position.set(lx, 4.9, -7.0); pl.castShadow = true; pl.shadow.mapSize.set(512, 512); scene.add(pl);
+	const makePendantLamp = (lx: number, lz: number, drop = 2.55) => {
+		const cord = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.012, 0.012, drop, 8),
+			new THREE.MeshStandardMaterial({ color: 0x0a0a0a })
+		);
+		cord.position.set(lx, 8.2 - drop / 2, lz);
+		scene.add(cord);
+
+		loadGlbProp({
+			path: GREASY_ASSETS.furniture.lampWithShade,
+			x: lx,
+			y: 5.35,
+			z: lz,
+			scale: 0.34,
+			ry: Math.PI,
+			tint: 0x15100b,
+		});
+
+		const shadeProfile = [
+			new THREE.Vector2(0.18, -0.34),
+			new THREE.Vector2(0.58, -0.18),
+			new THREE.Vector2(0.72, 0.18),
+			new THREE.Vector2(0.34, 0.38),
+		];
+		const shade = new THREE.Mesh(
+			new THREE.LatheGeometry(shadeProfile, 32),
+			new THREE.MeshStandardMaterial({
+				color: 0x0d0d0d,
+				side: THREE.DoubleSide,
+				roughness: 0.24,
+				metalness: 0.78,
+			})
+		);
+		shade.position.set(lx, 5.65, lz);
+		shade.castShadow = true;
+		scene.add(shade);
+
+		const ring = new THREE.Mesh(
+			new THREE.TorusGeometry(0.58, 0.018, 8, 36),
+			new THREE.MeshStandardMaterial({
+				color: C.mustard,
+				roughness: 0.08,
+				metalness: 0.82,
+			})
+		);
+		ring.rotation.x = Math.PI / 2;
+		ring.position.set(lx, 5.44, lz);
+		scene.add(ring);
+
+		const disc = new THREE.Mesh(
+			new THREE.CircleGeometry(0.36, 32),
+			new THREE.MeshStandardMaterial({
+				color: C.cream,
+				emissive: C.butter,
+				emissiveIntensity: 5.5,
+				roughness: 1,
+			})
+		);
+		disc.rotation.x = Math.PI / 2;
+		disc.position.set(lx, 5.42, lz);
+		scene.add(disc);
+
+		const pl = new THREE.PointLight(0xffcc66, 2.8, 7.5, 1.6);
+		pl.position.set(lx, 5.25, lz);
+		pl.castShadow = true;
+		pl.shadow.mapSize.set(512, 512);
+		scene.add(pl);
 		lampLights.push(pl);
-	});
+	};
+	makePendantLamp(-5.8, -6.15);
+	makePendantLamp(5.8, -6.15);
 
 	// ── BOOTHS ───────────────────────────────────────
-	for (const [bx, sign] of [[-11.0, 1], [11.0, -1]] as [number, number][]) {
-		const back = box(2.8, 1.6, 0.24, C.redDark, 0.6); back.position.set(bx, 1.56, -4.5); scene.add(back);
-		const seat = box(2.8, 0.2, 1.15, C.red, 0.58); seat.position.set(bx, 0.76, -4.0); scene.add(seat);
-		const tabletop = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.07, 20), new THREE.MeshStandardMaterial({ color: 0xede4c4, roughness: 0.32, metalness: 0.06 }));
-		tabletop.position.set(bx, 0.98, -2.8); tabletop.castShadow = true; scene.add(tabletop);
-		const tleg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.98, 8), new THREE.MeshStandardMaterial({ color: C.chrome, roughness: 0.08, metalness: 0.96 }));
-		tleg.position.set(bx, 0.49, -2.8); scene.add(tleg);
-		[[bx + sign * 0.35, 0xcc2020], [bx - sign * 0.25, 0xc89018]].forEach(([tx, col]) => {
-			const bot = box(0.09, 0.44, 0.09, col as number, 0.45);
-			bot.position.set(tx as number, 1.24, -2.82); scene.add(bot);
+	const makeFriesBasket = (x: number, y: number, z: number, rot = 0) => {
+		const group = new THREE.Group();
+		const tray = roundedBox(0.5, 0.11, 0.34, 0xb21f1f, 0.04, 0.55);
+		tray.position.y = 0.02;
+		group.add(tray);
+		for (let i = 0; i < 13; i++) {
+			const fry = new THREE.Mesh(
+				new THREE.CylinderGeometry(0.018, 0.02, 0.42 + Math.random() * 0.16, 6),
+				new THREE.MeshStandardMaterial({ color: 0xf0be51, roughness: 0.68 })
+			);
+			fry.rotation.z = (Math.random() - 0.5) * 0.7;
+			fry.rotation.x = (Math.random() - 0.5) * 0.35;
+			fry.position.set(
+				(Math.random() - 0.5) * 0.34,
+				0.22,
+				(Math.random() - 0.5) * 0.18
+			);
+			group.add(fry);
+		}
+		group.rotation.y = rot;
+		group.position.set(x, y, z);
+		scene.add(group);
+		return group;
+	};
+
+	const makePlate = (x: number, y: number, z: number) => {
+		const plate = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.38, 0.42, 0.045, 32),
+			new THREE.MeshStandardMaterial({
+				color: 0xfff2c8,
+				roughness: 0.42,
+				metalness: 0.03,
+			})
+		);
+		plate.position.set(x, y, z);
+		scene.add(plate);
+		return plate;
+	};
+
+	const makeDinerTable = (x: number, z: number, side: number) => {
+		const tabletop = roundedBox(1.55, 0.13, 0.98, 0xede4c4, 0.09, 0.28, 0.04);
+		tabletop.position.set(x, 1.0, z);
+		scene.add(tabletop);
+
+		const rim = new THREE.Mesh(
+			new THREE.TorusGeometry(0.66, 0.024, 8, 44),
+			new THREE.MeshStandardMaterial({
+				color: C.mustard,
+				roughness: 0.18,
+				metalness: 0.45,
+			})
+		);
+		rim.scale.z = 0.64;
+		rim.rotation.x = Math.PI / 2;
+		rim.position.set(x, 1.07, z);
+		scene.add(rim);
+
+		const stem = new THREE.Mesh(
+			new THREE.LatheGeometry(
+				[
+					new THREE.Vector2(0.08, -0.48),
+					new THREE.Vector2(0.05, -0.18),
+					new THREE.Vector2(0.075, 0.22),
+					new THREE.Vector2(0.05, 0.48),
+				],
+				24
+			),
+			new THREE.MeshStandardMaterial({
+				color: C.chrome,
+				roughness: 0.08,
+				metalness: 0.94,
+			})
+		);
+		stem.position.set(x, 0.5, z);
+		scene.add(stem);
+
+		const foot = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.36, 0.5, 0.08, 32),
+			new THREE.MeshStandardMaterial({
+				color: C.chrome,
+				roughness: 0.1,
+				metalness: 0.9,
+			})
+		);
+		foot.position.set(x, 0.045, z);
+		scene.add(foot);
+
+		const tableSlick = new THREE.Mesh(
+			new THREE.PlaneGeometry(0.72, 0.36),
+			new THREE.MeshStandardMaterial({
+				map: makeGreaseSlick(256, 128, "#7a2f05", 0.42),
+				transparent: true,
+				roughness: 0.05,
+				depthWrite: false,
+			})
+		);
+		tableSlick.rotation.x = -Math.PI / 2;
+		tableSlick.position.set(x + side * 0.08, 1.071, z - 0.08);
+		scene.add(tableSlick);
+
+		makePlate(x - side * 0.22, 1.115, z + 0.04);
+		loadGlbProp({
+			path: GREASY_ASSETS.food.cheeseburger,
+			x: x - side * 0.22,
+			y: 1.15,
+			z: z + 0.04,
+			scale: 0.42,
+			ry: side * 0.24,
 		});
-	}
+		makeFriesBasket(x + side * 0.18, 1.12, z - 0.08, side * 0.28);
+		loadGlbProp({
+			path: GREASY_ASSETS.food.soda,
+			x: x + side * 0.08,
+			y: 1.08,
+			z: z - 0.28,
+			scale: 0.24,
+			ry: side * 0.1,
+		});
+		loadGlbProp({
+			path: GREASY_ASSETS.food.bottle,
+			x: x + side * 0.42,
+			y: 1.08,
+			z: z + 0.24,
+			scale: 0.23,
+			ry: side * -0.2,
+		});
+		loadGlbProp({
+			path: GREASY_ASSETS.food.bottle,
+			x: x + side * 0.26,
+			y: 1.08,
+			z: z + 0.28,
+			scale: 0.2,
+			ry: side * 0.18,
+		});
+	};
+
+	const makeBooth = (wallX: number, z: number, side: number) => {
+		const back = roundedBox(0.34, 1.72, 3.35, C.redDark, 0.13, 0.58);
+		back.position.set(wallX, 1.55, z);
+		scene.add(back);
+		const seat = roundedBox(1.22, 0.34, 3.18, C.red, 0.12, 0.54);
+		seat.position.set(wallX - side * 0.48, 0.78, z);
+		scene.add(seat);
+		const toeKick = roundedBox(1.12, 0.22, 3.05, 0x130806, 0.06, 0.5, 0.1);
+		toeKick.position.set(wallX - side * 0.48, 0.33, z);
+		scene.add(toeKick);
+		for (let seam = -1.05; seam <= 1.05; seam += 0.7) {
+			const groove = box(0.045, 1.46, 0.035, 0x5b0909, 0.72);
+			groove.position.set(wallX - side * 0.18, 1.57, z + seam);
+			scene.add(groove);
+			const seatSeam = box(0.92, 0.025, 0.035, 0x8c1818, 0.72);
+			seatSeam.position.set(wallX - side * 0.48, 0.97, z + seam);
+			scene.add(seatSeam);
+		}
+		const topTrim = box(0.12, 0.09, 3.45, C.mustard, 0.18, 0.42);
+		topTrim.position.set(wallX - side * 0.19, 2.44, z);
+		scene.add(topTrim);
+		const sideCapA = roundedBox(1.16, 1.34, 0.13, C.redDark, 0.09, 0.58);
+		sideCapA.position.set(wallX - side * 0.48, 1.22, z - 1.66);
+		scene.add(sideCapA);
+		const sideCapB = roundedBox(1.16, 1.34, 0.13, C.redDark, 0.09, 0.58);
+		sideCapB.position.set(wallX - side * 0.48, 1.22, z + 1.66);
+		scene.add(sideCapB);
+		makeDinerTable(wallX - side * 1.72, z + 0.08, side);
+	};
+
+	makeBooth(-12.55, -3.15, -1);
+	makeBooth(12.55, -3.15, 1);
 
 	// ── JUKEBOX – pulled 1.5u away from back wall to prevent clip ──
-	const jbBody = box(1.15, 1.9, 0.7, 0x7a0000, 0.32, 0.18);
-	jbBody.position.set(-11.5, 0.95, -9.8); scene.add(jbBody);
-	const jbDome = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.56, 18, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xaa2222, roughness: 0.28, metalness: 0.22 }));
-	jbDome.position.set(-11.5, 1.9, -9.8); jbDome.rotation.z = Math.PI / 2; scene.add(jbDome);
-	const jbSC = document.createElement("canvas"); jbSC.width = 256; jbSC.height = 256;
+	const jbBody = roundedBox(1.15, 1.9, 0.7, 0x7a0000, 0.11, 0.32, 0.18);
+	jbBody.position.set(-11.5, 0.95, -9.8);
+	scene.add(jbBody);
+	const jbBase = roundedBox(1.28, 0.16, 0.82, 0x160705, 0.06, 0.42, 0.2);
+	jbBase.position.set(-11.5, 0.1, -9.8);
+	scene.add(jbBase);
+	const jbTrim = roundedBox(1.24, 0.08, 0.78, C.mustard, 0.04, 0.22, 0.36);
+	jbTrim.position.set(-11.5, 1.78, -9.8);
+	scene.add(jbTrim);
+	const jbDome = new THREE.Mesh(
+		new THREE.CylinderGeometry(0.58, 0.58, 0.56, 18, 1, false, 0, Math.PI),
+		new THREE.MeshStandardMaterial({
+			color: 0xaa2222,
+			roughness: 0.28,
+			metalness: 0.22,
+		})
+	);
+	jbDome.position.set(-11.5, 1.9, -9.8);
+	jbDome.rotation.z = Math.PI / 2;
+	scene.add(jbDome);
+	const jbSC = document.createElement("canvas");
+	jbSC.width = 256;
+	jbSC.height = 256;
 	const jsc = jbSC.getContext("2d")!;
-	const jg = jsc.createRadialGradient(128,128,8,128,128,128);
-	jg.addColorStop(0,"#ffcc44"); jg.addColorStop(0.45,"#ff6600"); jg.addColorStop(1,"#330000");
-	jsc.fillStyle = jg; jsc.fillRect(0,0,256,256);
-	jsc.fillStyle = "rgba(255,220,100,0.9)"; jsc.font = "bold 44px sans-serif"; jsc.textAlign = "center";
-	jsc.fillText("♫", 128, 80); jsc.font = "bold 28px Arial"; jsc.fillText("JUKEBOX", 128, 138); jsc.fillText("LIVE", 128, 184);
-	const jbScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.72), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(jbSC), emissive: 0xff6600, emissiveMap: new THREE.CanvasTexture(jbSC), emissiveIntensity: 1.9, roughness: 1 }));
-	jbScreen.position.set(-10.88, 1.18, -9.8); scene.add(jbScreen);
+	const jg = jsc.createRadialGradient(128, 128, 8, 128, 128, 128);
+	jg.addColorStop(0, "#ffcc44");
+	jg.addColorStop(0.45, "#ff6600");
+	jg.addColorStop(1, "#330000");
+	jsc.fillStyle = jg;
+	jsc.fillRect(0, 0, 256, 256);
+	jsc.fillStyle = "rgba(255,220,100,0.9)";
+	jsc.font = "bold 44px sans-serif";
+	jsc.textAlign = "center";
+	jsc.fillText("♫", 128, 80);
+	jsc.font = "bold 28px Arial";
+	jsc.fillText("JUKEBOX", 128, 138);
+	jsc.fillText("LIVE", 128, 184);
+	const jbScreenTex = canvasTexture(jbSC);
+	const jbScreen = new THREE.Mesh(
+		new THREE.PlaneGeometry(0.72, 0.72),
+		new THREE.MeshStandardMaterial({
+			map: jbScreenTex,
+			emissive: 0xff6600,
+			emissiveMap: jbScreenTex,
+			emissiveIntensity: 1.9,
+			roughness: 1,
+		})
+	);
+	jbScreen.position.set(-10.88, 1.18, -9.8);
+	jbScreen.rotation.y = Math.PI / 2;
+	scene.add(jbScreen);
 	const jbGlow = new THREE.PointLight(0xff6600, 1.4, 3.8, 2);
-	jbGlow.position.set(-10.6, 1.2, -9.8); scene.add(jbGlow);
+	jbGlow.position.set(-10.6, 1.2, -9.8);
+	scene.add(jbGlow);
 
 	// ── FRAMED POSTERS ───────────────────────────────
-	const makePoster = (x: number, y: number, z: number, ry: number, lines: string[], bg: string) => {
-		const pC = document.createElement("canvas"); pC.width = 320; pC.height = 420;
+	const makePoster = (
+		x: number,
+		y: number,
+		z: number,
+		ry: number,
+		lines: string[],
+		bg: string
+	) => {
+		const pC = document.createElement("canvas");
+		pC.width = 320;
+		pC.height = 420;
 		const pctx = pC.getContext("2d")!;
-		pctx.fillStyle = bg; pctx.fillRect(0,0,320,420);
-		pctx.strokeStyle = "#fff2c8"; pctx.lineWidth = 9; pctx.strokeRect(10,10,300,400);
-		pctx.strokeStyle = "#e8a946"; pctx.lineWidth = 3; pctx.strokeRect(20,20,280,380);
-		pctx.fillStyle = "#fff2c8"; pctx.font = "bold 42px 'Arial Black', Impact, sans-serif"; pctx.textAlign = "center";
+		pctx.fillStyle = bg;
+		pctx.fillRect(0, 0, 320, 420);
+		pctx.strokeStyle = "#fff2c8";
+		pctx.lineWidth = 9;
+		pctx.strokeRect(10, 10, 300, 400);
+		pctx.strokeStyle = "#e8a946";
+		pctx.lineWidth = 3;
+		pctx.strokeRect(20, 20, 280, 380);
+		pctx.fillStyle = "#fff2c8";
+		pctx.font = "bold 42px 'Arial Black', Impact, sans-serif";
+		pctx.textAlign = "center";
 		lines.forEach((l, i) => pctx.fillText(l, 160, 110 + i * 65));
-		const fr = box(0.88, 1.15, 0.045, 0x150902, 0.55); fr.position.set(x,y,z); fr.rotation.y = ry; scene.add(fr);
-		const pm = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.06), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(pC), roughness: 0.88 }));
-		pm.position.set(x + Math.sin(ry)*0.025, y, z + Math.cos(ry)*0.025); pm.rotation.y = ry; scene.add(pm);
+		const fr = box(0.88, 1.15, 0.045, 0x150902, 0.55);
+		fr.position.set(x, y, z);
+		fr.rotation.y = ry;
+		scene.add(fr);
+		const pm = new THREE.Mesh(
+			new THREE.PlaneGeometry(0.8, 1.06),
+			textureMaterial(canvasTexture(pC), { roughness: 0.88 })
+		);
+		pm.position.set(x + Math.sin(ry) * 0.025, y, z + Math.cos(ry) * 0.025);
+		pm.rotation.y = ry;
+		scene.add(pm);
 	};
 	// Posters pulled 0.04u off the wall face so they don't z-fight
-	makePoster(-13.82, 5.4, -5.5,  Math.PI/2, ["NO",    "REFUNDS"], "#7a0000");
-	makePoster(-13.82, 5.4, -8.5,  Math.PI/2, ["GREASY","SPECIAL"], "#1a4a22");
-	makePoster( 13.82, 5.4, -5.5, -Math.PI/2, ["EXTRA", "GREASY"],  "#8b4000");
-	makePoster( 13.82, 5.4, -8.5, -Math.PI/2, ["OPEN",  "LATE"],    "#0a2558");
+	makePoster(-13.82, 5.4, -5.5, Math.PI / 2, ["NO", "REFUNDS"], "#7a0000");
+	makePoster(-13.82, 5.4, -8.5, Math.PI / 2, ["GREASY", "SPECIAL"], "#1a4a22");
+	makePoster(13.82, 5.4, -5.5, -Math.PI / 2, ["EXTRA", "GREASY"], "#8b4000");
+	makePoster(13.82, 5.4, -8.5, -Math.PI / 2, ["OPEN", "LATE"], "#0a2558");
+
+	// ── ROOM PORTALS ─────────────────────────────────
+	const makeRoomDoor = ({
+		x,
+		z,
+		ry,
+		title,
+		subtitle,
+		accent,
+	}: {
+		x: number;
+		z: number;
+		ry: number;
+		title: string;
+		subtitle: string;
+		accent: number;
+	}) => {
+		const door = roundedBox(1.55, 2.45, 0.16, 0x170806, 0.06, 0.62, 0.08);
+		door.position.set(x, 1.52, z);
+		door.rotation.y = ry;
+		scene.add(door);
+
+		const inset = roundedBox(1.24, 1.95, 0.08, 0x080504, 0.04, 0.5, 0.16);
+		inset.position.set(
+			x + Math.sin(ry) * 0.055,
+			1.55,
+			z + Math.cos(ry) * 0.055
+		);
+		inset.rotation.y = ry;
+		scene.add(inset);
+
+		const trimTop = box(1.72, 0.09, 0.08, accent, 0.22, 0.42);
+		trimTop.position.set(x + Math.sin(ry) * 0.09, 2.8, z + Math.cos(ry) * 0.09);
+		trimTop.rotation.y = ry;
+		scene.add(trimTop);
+		const trimBottom = box(1.72, 0.09, 0.08, accent, 0.22, 0.42);
+		trimBottom.position.set(
+			x + Math.sin(ry) * 0.09,
+			0.29,
+			z + Math.cos(ry) * 0.09
+		);
+		trimBottom.rotation.y = ry;
+		scene.add(trimBottom);
+
+		const signC = document.createElement("canvas");
+		signC.width = 640;
+		signC.height = 220;
+		const signCtx = signC.getContext("2d")!;
+		signCtx.fillStyle = "#100604";
+		signCtx.fillRect(0, 0, 640, 220);
+		signCtx.strokeStyle = `#${accent.toString(16).padStart(6, "0")}`;
+		signCtx.lineWidth = 12;
+		signCtx.strokeRect(12, 12, 616, 196);
+		signCtx.fillStyle = "#fff2c8";
+		signCtx.font = "bold 62px 'Arial Black', Impact, sans-serif";
+		signCtx.textAlign = "center";
+		signCtx.fillText(title, 320, 92);
+		signCtx.fillStyle = `#${accent.toString(16).padStart(6, "0")}`;
+		signCtx.font = "bold 31px Impact, sans-serif";
+		signCtx.fillText(subtitle, 320, 150);
+		signCtx.fillStyle = "rgba(255,242,200,0.3)";
+		signCtx.font = "bold 24px Impact, sans-serif";
+		signCtx.fillText("PRESS E", 320, 188);
+
+		const signTex = canvasTexture(signC);
+		const sign = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.7, 0.58),
+			textureMaterial(signTex, {
+				roughness: 0.62,
+				emissive: accent,
+				emissiveMap: signTex,
+				emissiveIntensity: 0.38,
+			})
+		);
+		sign.position.set(x + Math.sin(ry) * 0.12, 3.1, z + Math.cos(ry) * 0.12);
+		sign.rotation.y = ry;
+		scene.add(sign);
+
+		const glow = new THREE.PointLight(accent, 0.85, 3.2, 2);
+		glow.position.set(x + Math.sin(ry) * 0.55, 2.0, z + Math.cos(ry) * 0.55);
+		scene.add(glow);
+		return { door, sign, glow };
+	};
+
+	const loreDoor = makeRoomDoor({
+		x: -13.78,
+		z: 2.0,
+		ry: Math.PI / 2,
+		title: "LORE HALL",
+		subtitle: "deep grease archive",
+		accent: C.red,
+	});
+	const fishDoor = makeRoomDoor({
+		x: 13.78,
+		z: 5.9,
+		ry: -Math.PI / 2,
+		title: "FISH FREEZER",
+		subtitle: "what's this?",
+		accent: C.teal,
+	});
+	const liveDoor = makeRoomDoor({
+		x: 13.78,
+		z: 0.4,
+		ry: -Math.PI / 2,
+		title: "LIVE ROOM",
+		subtitle: "screens stay on",
+		accent: C.neonBlue,
+	});
+
+	// ── ENTERABLE SIDE ROOMS ─────────────────────────
+	const makeRoomSign = (
+		text: string,
+		accent: number,
+		x: number,
+		y: number,
+		z: number,
+		ry: number,
+		w = 2.6,
+		h = 0.7
+	) => {
+		const sC = document.createElement("canvas");
+		sC.width = 720;
+		sC.height = 220;
+		const sctx = sC.getContext("2d")!;
+		sctx.fillStyle = "#100604";
+		sctx.fillRect(0, 0, 720, 220);
+		sctx.strokeStyle = `#${accent.toString(16).padStart(6, "0")}`;
+		sctx.lineWidth = 14;
+		sctx.strokeRect(18, 18, 684, 184);
+		sctx.fillStyle = "#fff2c8";
+		sctx.font = "bold 68px 'Arial Black', Impact, sans-serif";
+		sctx.textAlign = "center";
+		sctx.fillText(text, 360, 134);
+		const tex = canvasTexture(sC);
+		const sign = new THREE.Mesh(
+			new THREE.PlaneGeometry(w, h),
+			textureMaterial(tex, {
+				emissive: accent,
+				emissiveMap: tex,
+				emissiveIntensity: 0.36,
+			})
+		);
+		sign.position.set(x, y, z);
+		sign.rotation.y = ry;
+		scene.add(sign);
+		return sign;
+	};
+
+	const makeRoomShell = ({
+		cx,
+		cz,
+		w,
+		d,
+		accent,
+		title,
+	}: {
+		cx: number;
+		cz: number;
+		w: number;
+		d: number;
+		accent: number;
+		title: string;
+	}) => {
+		const group = new THREE.Group();
+		group.position.set(cx, 0, cz);
+		scene.add(group);
+
+		const floor = new THREE.Mesh(
+			new THREE.PlaneGeometry(w, d),
+			new THREE.MeshStandardMaterial({
+				map: floorTex,
+				roughness: 0.18,
+				metalness: 0.12,
+			})
+		);
+		floor.rotation.x = -Math.PI / 2;
+		floor.position.y = -0.006;
+		floor.receiveShadow = true;
+		group.add(floor);
+
+		const wallMat = new THREE.MeshStandardMaterial({
+			color: 0x3a100d,
+			roughness: 0.78,
+			metalness: 0.02,
+		});
+		const lowerMat = new THREE.MeshStandardMaterial({
+			map: subwayTex,
+			color: 0xffe3b0,
+			roughness: 0.66,
+			metalness: 0.02,
+		});
+		const ceilingMat = new THREE.MeshStandardMaterial({
+			color: 0x090302,
+			roughness: 0.85,
+		});
+
+		const back = new THREE.Mesh(new THREE.BoxGeometry(w, 4.8, 0.18), wallMat);
+		back.position.set(0, 2.4, -d / 2);
+		group.add(back);
+		const front = new THREE.Mesh(new THREE.BoxGeometry(w, 4.8, 0.18), wallMat);
+		front.position.set(0, 2.4, d / 2);
+		group.add(front);
+		const left = new THREE.Mesh(new THREE.BoxGeometry(0.18, 4.8, d), wallMat);
+		left.position.set(-w / 2, 2.4, 0);
+		group.add(left);
+		const right = new THREE.Mesh(new THREE.BoxGeometry(0.18, 4.8, d), wallMat);
+		right.position.set(w / 2, 2.4, 0);
+		group.add(right);
+
+		for (const wall of [
+			{ x: 0, z: -d / 2 + 0.1, ry: 0, ww: w - 0.3 },
+			{ x: 0, z: d / 2 - 0.1, ry: Math.PI, ww: w - 0.3 },
+			{ x: -w / 2 + 0.1, z: 0, ry: Math.PI / 2, ww: d - 0.3 },
+			{ x: w / 2 - 0.1, z: 0, ry: -Math.PI / 2, ww: d - 0.3 },
+		]) {
+			const lower = new THREE.Mesh(
+				new THREE.PlaneGeometry(wall.ww, 2.2),
+				lowerMat
+			);
+			lower.position.set(wall.x, 1.35, wall.z);
+			lower.rotation.y = wall.ry;
+			group.add(lower);
+			const rail = new THREE.Mesh(
+				new THREE.BoxGeometry(wall.ww, 0.08, 0.08),
+				new THREE.MeshStandardMaterial({ color: 0x120604, roughness: 0.6 })
+			);
+			rail.position.set(wall.x, 2.5, wall.z);
+			rail.rotation.y = wall.ry;
+			group.add(rail);
+		}
+
+		const ceiling = new THREE.Mesh(
+			new THREE.BoxGeometry(w, 0.12, d),
+			ceilingMat
+		);
+		ceiling.position.set(0, 4.78, 0);
+		group.add(ceiling);
+
+		const roomLight = new THREE.PointLight(accent, 1.2, 10, 1.7);
+		roomLight.position.set(0, 3.5, 0);
+		group.add(roomLight);
+		makeRoomSign(title, accent, cx, 3.55, cz - d / 2 + 0.12, 0, 3.1, 0.72);
+		return group;
+	};
+
+	const makeRoomScreen = ({
+		title,
+		lines,
+		x,
+		y,
+		z,
+		ry,
+		w,
+		h,
+		accent,
+	}: {
+		title: string;
+		lines: string[];
+		x: number;
+		y: number;
+		z: number;
+		ry: number;
+		w: number;
+		h: number;
+		accent: number;
+	}) => {
+		const sc = document.createElement("canvas");
+		sc.width = 900;
+		sc.height = 520;
+		const ctx = sc.getContext("2d")!;
+		ctx.fillStyle = "#040709";
+		ctx.fillRect(0, 0, 900, 520);
+		const glow = ctx.createRadialGradient(450, 270, 20, 450, 260, 420);
+		glow.addColorStop(0, `#${accent.toString(16).padStart(6, "0")}66`);
+		glow.addColorStop(0.55, "rgba(20,30,60,0.35)");
+		glow.addColorStop(1, "rgba(0,0,0,0)");
+		ctx.fillStyle = glow;
+		ctx.fillRect(0, 0, 900, 520);
+		ctx.strokeStyle = `#${accent.toString(16).padStart(6, "0")}`;
+		ctx.lineWidth = 10;
+		ctx.strokeRect(18, 18, 864, 484);
+		ctx.fillStyle = "#fff2c8";
+		ctx.font = "bold 58px 'Arial Black', Impact, sans-serif";
+		ctx.fillText(title, 48, 86);
+		ctx.font = "bold 30px Impact, sans-serif";
+		lines.forEach((line, i) => ctx.fillText(line, 58, 160 + i * 48));
+		ctx.fillStyle = `#${accent.toString(16).padStart(6, "0")}`;
+		for (let i = 0; i < 22; i++) {
+			ctx.globalAlpha = 0.18 + Math.random() * 0.45;
+			ctx.fillRect(
+				70 + Math.random() * 760,
+				130 + Math.random() * 330,
+				18 + Math.random() * 60,
+				3
+			);
+		}
+		ctx.globalAlpha = 1;
+
+		const tex = canvasTexture(sc);
+		const frame = roundedBox(
+			w + 0.18,
+			h + 0.18,
+			0.16,
+			0x030202,
+			0.05,
+			0.48,
+			0.2
+		);
+		frame.position.set(x - Math.sin(ry) * 0.04, y, z - Math.cos(ry) * 0.04);
+		frame.rotation.y = ry;
+		scene.add(frame);
+		const screen = new THREE.Mesh(
+			new THREE.PlaneGeometry(w, h),
+			textureMaterial(tex, {
+				emissive: accent,
+				emissiveMap: tex,
+				emissiveIntensity: 0.72,
+				roughness: 0.28,
+				metalness: 0.08,
+			})
+		);
+		screen.position.set(x, y, z);
+		screen.rotation.y = ry;
+		scene.add(screen);
+		return screen;
+	};
+
+	const roomObjects: Partial<Record<RoomKey, THREE.Object3D[]>> = {};
+	const captureRoomBuild = (room: RoomKey, build: () => void) => {
+		if (roomObjects[room]) return;
+		const before = new Set(scene.children);
+		build();
+		const created = scene.children.filter(child => !before.has(child));
+		created.forEach(child => {
+			child.visible = currentRoom.value === room;
+		});
+		roomObjects[room] = created;
+	};
+
+	const buildLoreRoom = () => {
+		makeRoomShell({
+			cx: -21.8,
+			cz: 2.0,
+			w: 10.4,
+			d: 9.6,
+			accent: C.red,
+			title: "LORE HALL",
+		});
+		makeRoomDoor({
+			x: -16.28,
+			z: 2.0,
+			ry: -Math.PI / 2,
+			title: "DINER",
+			subtitle: "return",
+			accent: C.mustard,
+		});
+		makeRoomSign("EVENT ARCHIVE", C.red, -21.8, 3.15, 6.72, Math.PI, 3.2, 0.66);
+		makeLayeredRelief({
+			path: GREASY_ASSETS.lore.micmac,
+			x: -26.62,
+			y: 2.0,
+			z: 2.0,
+			w: 1.35,
+			h: 3.0,
+			ry: Math.PI / 2,
+			accent: C.red,
+			label: "MIC MAC",
+			layers: 2,
+		});
+		makeClipping(-22.0, 2.7, 6.72, Math.PI, "GREASYSMP EVENT ARCHIVE", [
+			"Server seasons, bad alliances,",
+			"and chat archaeology catalogued",
+			"behind the diner wall.",
+		]);
+		makeClipping(-19.8, 2.7, 6.72, Math.PI, "STREAMER CAMP INCIDENTS", [
+			"Filed under outdoor chaos,",
+			"unrecoverable clips, and",
+			"things best left laminated.",
+		]);
+		makeClipping(-24.2, 2.7, 6.72, Math.PI, "SUBATHON RECORDS", [
+			"Big Brother, TwitchPlays,",
+			"24 hour sessions, and",
+			"all remaining grease minutes.",
+		]);
+	};
+
+	const buildFishRoom = () => {
+		makeRoomShell({
+			cx: 21.8,
+			cz: 6.2,
+			w: 10.4,
+			d: 7.0,
+			accent: C.teal,
+			title: "FISH FREEZER",
+		});
+		makeRoomDoor({
+			x: 16.28,
+			z: 6.2,
+			ry: Math.PI / 2,
+			title: "DINER",
+			subtitle: "return",
+			accent: C.mustard,
+		});
+		makeRoomSign("THE FISH", C.teal, 26.72, 3.15, 6.2, -Math.PI / 2, 2.6, 0.66);
+		makeLayeredRelief({
+			path: GREASY_ASSETS.lore.whatsThisFish,
+			x: 26.62,
+			y: 2.05,
+			z: 6.2,
+			w: 2.8,
+			h: 1.75,
+			ry: -Math.PI / 2,
+			accent: C.teal,
+			label: "WHAT'S THIS? FISH",
+			layers: 2,
+		});
+		const fishPlinth = roundedBox(2.35, 0.85, 1.2, 0x07110f, 0.08, 0.42, 0.16);
+		fishPlinth.position.set(25.25, 0.45, 6.2);
+		scene.add(fishPlinth);
+		const fishCase = new THREE.Mesh(
+			new THREE.BoxGeometry(2.7, 1.15, 1.55),
+			new THREE.MeshStandardMaterial({
+				color: 0x89d8c8,
+				transparent: true,
+				opacity: 0.22,
+				roughness: 0.18,
+				metalness: 0.05,
+			})
+		);
+		fishCase.position.set(25.25, 1.55, 6.2);
+		scene.add(fishCase);
+		const freezerLight = new THREE.PointLight(0x89d8c8, 1.2, 5, 1.8);
+		freezerLight.position.set(24.4, 2.8, 6.2);
+		scene.add(freezerLight);
+		for (const shelfZ of [4.05, 8.35]) {
+			const shelf = roundedBox(3.2, 0.16, 0.32, 0x1f3d35, 0.035, 0.36, 0.28);
+			shelf.position.set(20.3, 1.55, shelfZ);
+			scene.add(shelf);
+			for (let i = 0; i < 4; i++) {
+				const jar = new THREE.Mesh(
+					new THREE.CylinderGeometry(0.12, 0.12, 0.48, 16),
+					new THREE.MeshStandardMaterial({
+						color: i % 2 ? 0xe8a946 : 0xfa4040,
+						roughness: 0.34,
+						metalness: 0.06,
+					})
+				);
+				jar.position.set(19.25 + i * 0.42, 1.88, shelfZ);
+				scene.add(jar);
+			}
+		}
+		const coldSlick = new THREE.Mesh(
+			new THREE.PlaneGeometry(4.4, 2.2),
+			new THREE.MeshStandardMaterial({
+				map: makeGreaseSlick(512, 192, "#0c6f6a", 0.28),
+				transparent: true,
+				roughness: 0.05,
+				metalness: 0.42,
+				depthWrite: false,
+			})
+		);
+		coldSlick.rotation.x = -Math.PI / 2;
+		coldSlick.position.set(23.6, 0.012, 6.2);
+		scene.add(coldSlick);
+	};
+
+	const buildLiveRoom = () => {
+		makeRoomShell({
+			cx: 21.8,
+			cz: -5.4,
+			w: 10.4,
+			d: 6.6,
+			accent: C.neonBlue,
+			title: "LIVE ROOM",
+		});
+		makeRoomDoor({
+			x: 16.28,
+			z: -5.4,
+			ry: Math.PI / 2,
+			title: "DINER",
+			subtitle: "return",
+			accent: C.mustard,
+		});
+		makeRoomSign(
+			"LIVE WALL",
+			C.neonBlue,
+			26.72,
+			3.15,
+			-5.4,
+			-Math.PI / 2,
+			2.8,
+			0.66
+		);
+		makeRoomScreen({
+			title: "TWITCH LIVE",
+			lines: ["STATUS: STANDBY", "CHAT FEED: READY", "SIGNAL: GREASY"],
+			x: 26.62,
+			y: 2.55,
+			z: -7.05,
+			ry: -Math.PI / 2,
+			w: 2.5,
+			h: 1.45,
+			accent: 0x7b3cff,
+		});
+		makeRoomScreen({
+			title: "WATCHTIME",
+			lines: ["TOP GREASE HOURS", "LEADERBOARD FEED", "SYNC IN PROGRESS"],
+			x: 26.62,
+			y: 2.55,
+			z: -5.4,
+			ry: -Math.PI / 2,
+			w: 2.5,
+			h: 1.45,
+			accent: C.neonBlue,
+		});
+		makeRoomScreen({
+			title: "ON AIR",
+			lines: ["MAC CAM", "CLIPS", "LOUD BITS"],
+			x: 26.62,
+			y: 2.55,
+			z: -3.75,
+			ry: -Math.PI / 2,
+			w: 2.5,
+			h: 1.45,
+			accent: C.red,
+		});
+		const liveDesk = roundedBox(3.8, 0.7, 1.4, 0x080403, 0.06, 0.48, 0.14);
+		liveDesk.position.set(22.0, 0.55, -5.4);
+		scene.add(liveDesk);
+		const mixer = roundedBox(1.7, 0.16, 0.82, 0x10151b, 0.04, 0.36, 0.12);
+		mixer.position.set(22.0, 1.02, -5.4);
+		scene.add(mixer);
+		for (let i = 0; i < 8; i++) {
+			const knob = new THREE.Mesh(
+				new THREE.CylinderGeometry(0.055, 0.055, 0.05, 14),
+				new THREE.MeshStandardMaterial({
+					color: i % 2 ? C.neonBlue : C.red,
+					emissive: i % 2 ? C.neonBlue : C.red,
+					emissiveIntensity: 0.7,
+					roughness: 0.32,
+				})
+			);
+			knob.position.set(
+				21.35 + (i % 4) * 0.42,
+				1.14,
+				-5.62 + Math.floor(i / 4) * 0.36
+			);
+			scene.add(knob);
+		}
+		const onAirLight = new THREE.PointLight(C.red, 1.4, 5, 1.7);
+		onAirLight.position.set(24.7, 2.5, -4.0);
+		scene.add(onAirLight);
+	};
 
 	// ── LORE NEWSPAPER CLIPPINGS (left wall) ─────────
-	const makeClipping = (x: number, y: number, z: number, ry: number, headline: string, body: string[]) => {
-		const pC = document.createElement("canvas"); pC.width = 480; pC.height = 560;
+	const makeClipping = (
+		x: number,
+		y: number,
+		z: number,
+		ry: number,
+		headline: string,
+		body: string[]
+	) => {
+		const pC = document.createElement("canvas");
+		pC.width = 480;
+		pC.height = 560;
 		const ctx = pC.getContext("2d")!;
-		ctx.fillStyle = "#f5edcc"; ctx.fillRect(0,0,480,560);
+		ctx.fillStyle = "#f5edcc";
+		ctx.fillRect(0, 0, 480, 560);
 		// aged paper texture
-		ctx.fillStyle = "rgba(180,140,60,0.12)"; ctx.fillRect(0,0,480,560);
+		ctx.fillStyle = "rgba(180,140,60,0.12)";
+		ctx.fillRect(0, 0, 480, 560);
 		// headline rule
-		ctx.strokeStyle = "#1a0d06"; ctx.lineWidth = 3;
-		ctx.beginPath(); ctx.moveTo(18,18); ctx.lineTo(462,18); ctx.stroke();
-		ctx.beginPath(); ctx.moveTo(18,22); ctx.lineTo(462,22); ctx.stroke();
+		ctx.strokeStyle = "#1a0d06";
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.moveTo(18, 18);
+		ctx.lineTo(462, 18);
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(18, 22);
+		ctx.lineTo(462, 22);
+		ctx.stroke();
 		// masthead
-		ctx.fillStyle = "#1a0d06"; ctx.font = "bold 18px serif"; ctx.textAlign = "center";
+		ctx.fillStyle = "#1a0d06";
+		ctx.font = "bold 18px serif";
+		ctx.textAlign = "center";
 		ctx.fillText("THE GREASY GAZETTE  •  GREASYGANG EDITION", 240, 42);
-		ctx.beginPath(); ctx.moveTo(18,50); ctx.lineTo(462,50); ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(18, 50);
+		ctx.lineTo(462, 50);
+		ctx.stroke();
 		// headline
-		ctx.fillStyle = "#1a0d06"; ctx.font = "bold 38px serif"; ctx.textAlign = "center";
+		ctx.fillStyle = "#1a0d06";
+		ctx.font = "bold 38px serif";
+		ctx.textAlign = "center";
 		const words = headline.split(" ");
-		let line = ""; let lineY = 92;
+		let line = "";
+		let lineY = 92;
 		for (const w of words) {
 			const test = line + w + " ";
-			if (ctx.measureText(test).width > 420 && line) { ctx.fillText(line.trim(), 240, lineY); line = w + " "; lineY += 44; }
-			else line = test;
+			if (ctx.measureText(test).width > 420 && line) {
+				ctx.fillText(line.trim(), 240, lineY);
+				line = w + " ";
+				lineY += 44;
+			} else line = test;
 		}
-		ctx.fillText(line.trim(), 240, lineY); lineY += 16;
-		ctx.beginPath(); ctx.moveTo(18, lineY+8); ctx.lineTo(462, lineY+8); ctx.stroke(); lineY += 24;
+		ctx.fillText(line.trim(), 240, lineY);
+		lineY += 16;
+		ctx.beginPath();
+		ctx.moveTo(18, lineY + 8);
+		ctx.lineTo(462, lineY + 8);
+		ctx.stroke();
+		lineY += 24;
 		// body
-		ctx.font = "15px serif"; ctx.textAlign = "left";
-		body.forEach(bLine => { ctx.fillText(bLine, 22, lineY); lineY += 22; });
+		ctx.font = "15px serif";
+		ctx.textAlign = "left";
+		body.forEach(bLine => {
+			ctx.fillText(bLine, 22, lineY);
+			lineY += 22;
+		});
 		// fold marks
-		ctx.strokeStyle = "rgba(100,70,20,0.18)"; ctx.lineWidth = 1;
-		ctx.beginPath(); ctx.moveTo(0,280); ctx.lineTo(480,280); ctx.stroke();
-		const fr = box(1.6, 1.95, 0.04, 0x1a0d06, 0.8); fr.position.set(x,y,z); fr.rotation.y = ry; scene.add(fr);
-		const pm = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.85), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(pC), roughness: 0.85 }));
-		pm.position.set(x + Math.sin(ry)*0.022, y, z + Math.cos(ry)*0.022); pm.rotation.y = ry; scene.add(pm);
+		ctx.strokeStyle = "rgba(100,70,20,0.18)";
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(0, 280);
+		ctx.lineTo(480, 280);
+		ctx.stroke();
+		const fr = box(1.6, 1.95, 0.04, 0x1a0d06, 0.8);
+		fr.position.set(x, y, z);
+		fr.rotation.y = ry;
+		scene.add(fr);
+		const pm = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.5, 1.85),
+			textureMaterial(canvasTexture(pC), { roughness: 0.85 })
+		);
+		pm.position.set(x + Math.sin(ry) * 0.022, y, z + Math.cos(ry) * 0.022);
+		pm.rotation.y = ry;
+		scene.add(pm);
 	};
 	// Clippings pulled off left wall face
-	makeClipping(-13.82, 3.5, -3.5, Math.PI/2,
+	makeClipping(
+		-13.82,
+		3.5,
+		-3.5,
+		Math.PI / 2,
 		"40 DAY STREAM STREAK SHOCKS VIEWERS",
-		["Mac goes live every single day for", "40 consecutive days, refusing to", "stop for anything. Chat descends", "into pure chaos by day 28.", "\"I cannot be stopped,\" he whispered.", "Nobody believed him. He was right."]);
-	makeClipping(-13.82, 3.5, -6.5, Math.PI/2,
-		"GREASYSMP SEASON 4 CONCLUDES",
-		["After four legendary seasons of", "the GreasySMP, the server closes", "its doors. Drama, betrayal, and an", "astronomical amount of dirt blocks.", "GreasyCraft remains a cornerstone", "of the GreasyGang experience."]);
-	makeClipping(-13.82, 3.5, -9.5, Math.PI/2,
+		[
+			"Mac goes live every single day for",
+			"40 consecutive days, refusing to",
+			"stop for anything. Chat descends",
+			"into pure chaos by day 28.",
+			'"I cannot be stopped," he whispered.',
+			"Nobody believed him. He was right.",
+		]
+	);
+	makeClipping(-13.82, 3.5, -6.5, Math.PI / 2, "GREASYSMP SEASON 4 CONCLUDES", [
+		"After four legendary seasons of",
+		"the GreasySMP, the server closes",
+		"its doors. Drama, betrayal, and an",
+		"astronomical amount of dirt blocks.",
+		"GreasyCraft remains a cornerstone",
+		"of the GreasyGang experience.",
+	]);
+	makeClipping(
+		-13.82,
+		3.5,
+		-9.5,
+		Math.PI / 2,
 		"CLOWN WALKS: A CULTURAL RESET",
-		["Mac dons his clown suit and walks", "through public spaces as chat", "screams directions. Passersby", "confused. Chat never happier.", "\"Wii in the Wild\" spawns similarly.", "Los Angeles has not recovered."]);
+		[
+			"Mac dons his clown suit and walks",
+			"through public spaces as chat",
+			"screams directions. Passersby",
+			"confused. Chat never happier.",
+			'"Wii in the Wild" spawns similarly.',
+			"Los Angeles has not recovered.",
+		]
+	);
+
+	ensureRoomLoaded = (room: RoomKey) => {
+		if (room === "main") return;
+		if (room === "lore") captureRoomBuild("lore", buildLoreRoom);
+		if (room === "fish") captureRoomBuild("fish", buildFishRoom);
+		if (room === "live") captureRoomBuild("live", buildLiveRoom);
+	};
+	syncRoomVisibility = (room: RoomKey) => {
+		for (const [key, objects] of Object.entries(roomObjects) as [
+			RoomKey,
+			THREE.Object3D[],
+		][]) {
+			objects.forEach(object => {
+				object.visible = key === room;
+			});
+		}
+	};
+
+	// ── WIKI LORE PLAQUES + SHELF PROPS (side walls) ──
+	const makeLorePlaque = (
+		x: number,
+		y: number,
+		z: number,
+		ry: number,
+		title: string,
+		lines: string[],
+		accent: string
+	) => {
+		const pC = document.createElement("canvas");
+		pC.width = 720;
+		pC.height = 420;
+		const ctx = pC.getContext("2d")!;
+		ctx.fillStyle = "#130806";
+		ctx.fillRect(0, 0, 720, 420);
+		setCanvasNoise(ctx, 720, 420, 0.14);
+		ctx.fillStyle = accent;
+		ctx.fillRect(0, 0, 720, 18);
+		ctx.fillRect(0, 402, 720, 18);
+		ctx.strokeStyle = "#e8a946";
+		ctx.lineWidth = 7;
+		ctx.strokeRect(16, 16, 688, 388);
+		ctx.strokeStyle = "rgba(255,242,200,0.25)";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(34, 34, 652, 352);
+		ctx.fillStyle = accent;
+		ctx.font = "bold 56px 'Arial Black', Impact, sans-serif";
+		ctx.textAlign = "center";
+		ctx.fillText(title, 360, 92);
+		ctx.fillStyle = "#fff2c8";
+		ctx.font = "bold 29px Arial, sans-serif";
+		lines.forEach((line, i) => ctx.fillText(line, 360, 168 + i * 50));
+		ctx.fillStyle = "rgba(255,242,200,0.35)";
+		ctx.font = "italic 22px serif";
+		ctx.fillText("from the GreasyMac wiki wall", 360, 365);
+
+		const frame = box(2.7, 1.55, 0.07, 0x100604, 0.7, 0.12);
+		frame.rotation.y = ry;
+		frame.position.set(x, y, z);
+		scene.add(frame);
+		const plaque = new THREE.Mesh(
+			new THREE.PlaneGeometry(2.5, 1.35),
+			textureMaterial(canvasTexture(pC), {
+				roughness: 0.82,
+				emissive: new THREE.Color(accent).getHex(),
+				emissiveIntensity: 0.07,
+			})
+		);
+		plaque.rotation.y = ry;
+		plaque.position.set(x + Math.sin(ry) * 0.035, y, z + Math.cos(ry) * 0.035);
+		scene.add(plaque);
+	};
+
+	const makeLoreShelf = (
+		x: number,
+		z: number,
+		ry: number,
+		accent: number,
+		prop: "remote" | "nose"
+	) => {
+		const shelf = roundedBox(0.12, 0.16, 2.3, 0x2a1409, 0.04, 0.52, 0.1);
+		shelf.position.set(x, 2.15, z);
+		shelf.rotation.y = ry;
+		scene.add(shelf);
+		if (prop === "remote") {
+			const remote = roundedBox(0.18, 0.12, 0.78, 0xf4f4ed, 0.045, 0.38);
+			remote.rotation.y = ry;
+			remote.position.set(x + Math.sin(ry) * 0.16, 2.42, z);
+			scene.add(remote);
+			for (let i = 0; i < 4; i++) {
+				const btn = new THREE.Mesh(
+					new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14),
+					new THREE.MeshStandardMaterial({ color: i === 0 ? C.red : 0x222222 })
+				);
+				btn.rotation.x = Math.PI / 2;
+				btn.position.set(x + Math.sin(ry) * 0.23, 2.5, z - 0.22 + i * 0.12);
+				scene.add(btn);
+			}
+		}
+		if (prop === "nose") {
+			const nose = new THREE.Mesh(
+				new THREE.SphereGeometry(0.2, 24, 16),
+				new THREE.MeshStandardMaterial({
+					color: C.red,
+					roughness: 0.22,
+					metalness: 0.05,
+					emissive: C.red,
+					emissiveIntensity: 0.18,
+				})
+			);
+			nose.position.set(x + Math.sin(ry) * 0.18, 2.42, z);
+			scene.add(nose);
+		}
+	};
+
+	makeLorePlaque(
+		13.78,
+		5.18,
+		3.85,
+		-Math.PI / 2,
+		"WII IN THE WILD",
+		["field reports from", "the public-chaos archive", "chat remains liable"],
+		"#e8a946"
+	);
+	makeLoreShelf(13.68, 4.15, -Math.PI / 2, C.red, "remote");
+	makeLorePlaque(
+		-13.78,
+		3.15,
+		1.3,
+		Math.PI / 2,
+		"CLOWN CONFESSIONALS",
+		["private booth stories", "from the grease era", "no refunds on truth"],
+		"#fa4040"
+	);
+	makeLoreShelf(-13.68, 2.9, Math.PI / 2, C.red, "nose");
+	const maclingRelief = makeLayeredRelief({
+		path: GREASY_ASSETS.lore.ggFatArt,
+		x: 13.72,
+		y: 3.0,
+		z: -2.15,
+		w: 0.72,
+		h: 0.74,
+		ry: -Math.PI / 2,
+		accent: C.mustard,
+		label: "MACLING",
+		layers: 2,
+	});
 
 	// ── LORE BOARD: Wall of Fame (right wall upper) ──
 	const makeWallOfFame = () => {
-		const wC2 = document.createElement("canvas"); wC2.width = 900; wC2.height = 640;
+		const wC2 = document.createElement("canvas");
+		wC2.width = 900;
+		wC2.height = 640;
 		const ctx2 = wC2.getContext("2d")!;
-		ctx2.fillStyle = "#0d0805"; ctx2.fillRect(0,0,900,640);
-		ctx2.strokeStyle = "#e8a946"; ctx2.lineWidth = 4;
-		ctx2.strokeRect(6,6,888,628);
-		ctx2.strokeStyle = "rgba(232,169,70,0.3)"; ctx2.lineWidth = 1.5;
-		ctx2.strokeRect(14,14,872,612);
-		ctx2.shadowColor = "#e8a946"; ctx2.shadowBlur = 18;
-		ctx2.fillStyle = "#e8a946"; ctx2.font = "bold 58px 'Arial Black', Impact, sans-serif";
-		ctx2.textAlign = "center"; ctx2.fillText("WALL OF LEGENDS", 450, 68);
+		ctx2.fillStyle = "#0d0805";
+		ctx2.fillRect(0, 0, 900, 640);
+		ctx2.strokeStyle = "#e8a946";
+		ctx2.lineWidth = 4;
+		ctx2.strokeRect(6, 6, 888, 628);
+		ctx2.strokeStyle = "rgba(232,169,70,0.3)";
+		ctx2.lineWidth = 1.5;
+		ctx2.strokeRect(14, 14, 872, 612);
+		ctx2.shadowColor = "#e8a946";
+		ctx2.shadowBlur = 18;
+		ctx2.fillStyle = "#e8a946";
+		ctx2.font = "bold 58px 'Arial Black', Impact, sans-serif";
+		ctx2.textAlign = "center";
+		ctx2.fillText("WALL OF LEGENDS", 450, 68);
 		ctx2.shadowBlur = 0;
-		ctx2.strokeStyle = "rgba(232,169,70,0.4)"; ctx2.lineWidth = 1;
-		ctx2.beginPath(); ctx2.moveTo(30,82); ctx2.lineTo(870,82); ctx2.stroke();
+		ctx2.strokeStyle = "rgba(232,169,70,0.4)";
+		ctx2.lineWidth = 1;
+		ctx2.beginPath();
+		ctx2.moveTo(30, 82);
+		ctx2.lineTo(870, 82);
+		ctx2.stroke();
 		const events = [
 			"★  The SM64 Week",
 			"★  48-Hour Minecraft Build Event",
@@ -495,160 +2081,430 @@ onMounted(() => {
 			"★  TwitchPlays",
 			"★  Big Brother Subathon",
 		];
-		ctx2.fillStyle = "#fff2c8"; ctx2.font = "28px Arial, sans-serif"; ctx2.textAlign = "left";
+		ctx2.fillStyle = "#fff2c8";
+		ctx2.font = "28px Arial, sans-serif";
+		ctx2.textAlign = "left";
 		events.forEach((ev, i) => {
-			if (i === 5) { ctx2.textAlign = "left"; }
+			if (i === 5) {
+				ctx2.textAlign = "left";
+			}
 			const col = i < 5 ? 42 : 470;
-			const row = (i % 5);
+			const row = i % 5;
 			ctx2.fillText(ev, col, 132 + row * 96);
 		});
-		ctx2.fillStyle = "rgba(232,169,70,0.28)"; ctx2.font = "italic 20px serif"; ctx2.textAlign = "center";
-		ctx2.fillText("\"variety streamer. los angeles. extra greasy.\"", 450, 610);
-		// Wall of fame on right wall – centered at z=-6.5 (safe from back corner)
-		const fr2 = box(5.5, 4.0, 0.1, 0x0a0604, 0.8); fr2.rotation.y = -Math.PI/2; fr2.position.set(13.84, 4.5, -6.5); scene.add(fr2);
-		const board = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 3.7), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(wC2), roughness: 0.88, emissive: 0x0a0604, emissiveIntensity: 0.3 }));
-		board.rotation.y = -Math.PI/2; board.position.set(13.78, 4.5, -6.5); scene.add(board);
+		ctx2.fillStyle = "rgba(232,169,70,0.28)";
+		ctx2.font = "italic 20px serif";
+		ctx2.textAlign = "center";
+		ctx2.fillText('"variety streamer. los angeles. extra greasy."', 450, 610);
+		// Wall of fame lives in the rear-right corner, clear of the TV bank.
+		const fr2 = box(4.9, 3.65, 0.1, 0x0a0604, 0.8);
+		fr2.rotation.y = -Math.PI / 2;
+		fr2.position.set(13.84, 4.35, -9.3);
+		scene.add(fr2);
+		const boardTex = canvasTexture(wC2);
+		const board = new THREE.Mesh(
+			new THREE.PlaneGeometry(4.55, 3.35),
+			textureMaterial(boardTex, {
+				roughness: 0.88,
+				emissive: 0x0a0604,
+				emissiveIntensity: 0.3,
+			})
+		);
+		board.rotation.y = -Math.PI / 2;
+		board.position.set(13.76, 4.35, -9.3);
+		scene.add(board);
 		const boardLight = new THREE.PointLight(0xe8a946, 1.2, 6, 1.8);
-		boardLight.position.set(12.0, 4.5, -6.5); scene.add(boardLight);
+		boardLight.position.set(12.0, 4.35, -9.3);
+		scene.add(boardLight);
 	};
 	makeWallOfFame();
 
-	// ── TODAY'S SPECIALS CHALKBOARD (above counter) ──
+	// ── ORDER RAIL (above counter) ──
 	const makeChalky = () => {
-		const cC = document.createElement("canvas"); cC.width = 1024; cC.height = 380;
+		const cC = document.createElement("canvas");
+		cC.width = 1024;
+		cC.height = 250;
 		const ctx3 = cC.getContext("2d")!;
-		ctx3.fillStyle = "#0e1a0e"; ctx3.fillRect(0,0,1024,380);
-		// chalk texture noise
-		for (let i = 0; i < 800; i++) {
-			ctx3.fillStyle = `rgba(255,255,255,${Math.random()*0.03})`;
-			ctx3.fillRect(Math.random()*1024, Math.random()*380, Math.random()*3+1, Math.random()*2+1);
+		ctx3.fillStyle = "#fff2c8";
+		ctx3.fillRect(0, 0, 1024, 250);
+		ctx3.fillStyle = "#c92828";
+		ctx3.fillRect(0, 0, 1024, 24);
+		ctx3.fillRect(0, 226, 1024, 24);
+		ctx3.fillStyle = "rgba(232,169,70,0.26)";
+		for (let i = 0; i < 160; i++) {
+			ctx3.fillRect(
+				Math.random() * 1024,
+				Math.random() * 250,
+				Math.random() * 16 + 4,
+				1
+			);
 		}
-		ctx3.strokeStyle = "rgba(255,255,255,0.55)"; ctx3.lineWidth = 4;
-		ctx3.strokeRect(10,10,1004,360);
-		ctx3.fillStyle = "rgba(255,242,200,0.85)"; ctx3.font = "bold 56px Impact, sans-serif";
-		ctx3.textAlign = "center"; ctx3.shadowColor = "rgba(255,255,255,0.4)"; ctx3.shadowBlur = 8;
-		ctx3.fillText("TODAY'S SPECIALS", 512, 68);
-		ctx3.shadowBlur = 0;
-		ctx3.strokeStyle = "rgba(255,255,255,0.25)"; ctx3.lineWidth = 1.5;
-		ctx3.beginPath(); ctx3.moveTo(30,84); ctx3.lineTo(994,84); ctx3.stroke();
+		ctx3.strokeStyle = "#25120e";
+		ctx3.lineWidth = 10;
+		ctx3.strokeRect(8, 8, 1008, 234);
+		ctx3.strokeStyle = "rgba(37,18,14,0.35)";
+		ctx3.lineWidth = 3;
+		ctx3.strokeRect(28, 32, 968, 186);
+		ctx3.fillStyle = "#25120e";
+		ctx3.font = "bold 46px Impact, sans-serif";
+		ctx3.textAlign = "center";
+		ctx3.fillText("TODAY'S GREASY SPECIALS", 512, 74);
+		ctx3.fillStyle = "#c92828";
+		ctx3.font = "bold 25px Impact, sans-serif";
+		ctx3.fillText("aim at the wall signs or press E near a zone", 512, 110);
 		const items2 = [
-			["DISCORD COMBO",  "FREE"],
+			["DISCORD COMBO", "FREE"],
 			["TWITCH LIVE SET", "FREE"],
-			["YOUTUBE CLIPS",  "FREE"],
-			["GREASY SPECIAL", "EXTRA"],
+			["CLIPS & SHORTS", "FREE"],
 		];
-		ctx3.textAlign = "left"; ctx3.font = "32px Impact, sans-serif";
+		ctx3.textAlign = "left";
+		ctx3.font = "30px Impact, sans-serif";
 		items2.forEach(([name, price], i) => {
-			const row = Math.floor(i / 2), col = i % 2;
-			ctx3.fillStyle = "rgba(255,242,200,0.8)"; ctx3.fillText(name, 30 + col * 510, 138 + row * 100);
-			ctx3.fillStyle = "#f6cf5d"; ctx3.textAlign = "right"; ctx3.fillText(price, 486 + col * 510, 138 + row * 100);
+			const x = 72 + i * 315;
+			ctx3.fillStyle = "#25120e";
+			ctx3.fillText(name, x, 171);
+			ctx3.fillStyle = "#2f7f67";
+			ctx3.textAlign = "right";
+			ctx3.fillText(price, x + 250, 171);
 			ctx3.textAlign = "left";
-			ctx3.strokeStyle = "rgba(255,255,255,0.15)"; ctx3.lineWidth = 1;
-			ctx3.beginPath(); ctx3.moveTo(30 + col*510, 148 + row*100); ctx3.lineTo(486 + col*510, 148 + row*100); ctx3.stroke();
+			ctx3.strokeStyle = "rgba(37,18,14,0.25)";
+			ctx3.lineWidth = 2;
+			ctx3.beginPath();
+			ctx3.moveTo(x, 181);
+			ctx3.lineTo(x + 250, 181);
+			ctx3.stroke();
 		});
-		ctx3.fillStyle = "rgba(255,242,200,0.35)"; ctx3.font = "italic 22px serif"; ctx3.textAlign = "center";
-		ctx3.fillText("ask about our seasonal GreasySMP server   •   no substitutions   •   no refunds", 512, 340);
-		const cfr = box(8.5, 2.85, 0.1, 0x0a0d0a, 0.85); cfr.position.set(0, 3.0, -9.48); scene.add(cfr);
-		const cboard = new THREE.Mesh(new THREE.PlaneGeometry(8.0, 2.65), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(cC), roughness: 0.95, emissive: 0x0e1a0e, emissiveIntensity: 0.2 }));
-		cboard.position.set(0, 3.0, -9.44); scene.add(cboard);
+		const tex = canvasTexture(cC);
+		const cfr = box(8.3, 1.34, 0.08, 0x25120e, 0.72);
+		cfr.position.set(0, 2.25, -11.35);
+		scene.add(cfr);
+		const cboard = new THREE.Mesh(
+			new THREE.PlaneGeometry(8.0, 1.16),
+			new THREE.MeshStandardMaterial({
+				map: tex,
+				roughness: 0.62,
+				emissive: 0xffaa44,
+				emissiveMap: tex,
+				emissiveIntensity: 0.08,
+			})
+		);
+		cboard.position.set(0, 2.25, -11.28);
+		scene.add(cboard);
 	};
 	makeChalky();
 
 	// ── DIRECTIONAL HANGING SIGNS ─────────────────────
-	const makeHangingSign = (x: number, z: number, ry: number, text: string, arrow: string, color: number) => {
-		const sC = document.createElement("canvas"); sC.width = 512; sC.height = 144;
+	const makeHangingSign = (
+		x: number,
+		z: number,
+		ry: number,
+		text: string,
+		arrow: string,
+		color: number
+	) => {
+		const sC = document.createElement("canvas");
+		sC.width = 512;
+		sC.height = 144;
 		const sctx = sC.getContext("2d")!;
-		sctx.fillStyle = "#" + color.toString(16).padStart(6,"0"); sctx.fillRect(0,0,512,144);
-		sctx.fillStyle = "#25120e"; sctx.fillRect(4,4,504,136);
-		sctx.fillStyle = "#" + color.toString(16).padStart(6,"0"); sctx.fillRect(8,8,496,128);
-		sctx.fillStyle = "#fff2c8"; sctx.font = "bold 58px 'Arial Black', Impact, sans-serif"; sctx.textAlign = "center"; sctx.textBaseline = "middle";
-		sctx.fillText(`${arrow}  ${text}`, 256, 72);
+		sctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
+		sctx.fillRect(0, 0, 512, 144);
+		sctx.fillStyle = "#25120e";
+		sctx.fillRect(4, 4, 504, 136);
+		sctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
+		sctx.fillRect(8, 8, 496, 128);
+		sctx.fillStyle = "#fff2c8";
+		const label = `${arrow}  ${text}`;
+		let signFont = 58;
+		sctx.font = `bold ${signFont}px 'Arial Black', Impact, sans-serif`;
+		while (sctx.measureText(label).width > 430 && signFont > 34) {
+			signFont -= 3;
+			sctx.font = `bold ${signFont}px 'Arial Black', Impact, sans-serif`;
+		}
+		sctx.textAlign = "center";
+		sctx.textBaseline = "middle";
+		sctx.fillText(label, 256, 72);
+		const worldW = text.length > 8 ? 3.25 : 2.4;
 		// chains
-		const chain1 = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1.5,6), new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.7 }));
-		chain1.position.set(x-0.8, 7.5, z); chain1.rotation.y = ry; scene.add(chain1);
-		const chain2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1.5,6), new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.7 }));
-		chain2.position.set(x+0.8, 7.5, z); chain2.rotation.y = ry; scene.add(chain2);
-		const sfr = box(2.4, 0.7, 0.05, 0x25120e, 0.7); sfr.position.set(x, 6.7, z); sfr.rotation.y = ry; scene.add(sfr);
-		const sm = new THREE.Mesh(new THREE.PlaneGeometry(2.25, 0.58), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(sC), roughness: 0.6, emissive: color, emissiveMap: new THREE.CanvasTexture(sC), emissiveIntensity: 0.15 }));
-		sm.position.set(x + Math.sin(ry)*0.03, 6.7, z + Math.cos(ry)*0.03); sm.rotation.y = ry; scene.add(sm);
+		const chain1 = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.012, 0.012, 1.5, 6),
+			new THREE.MeshStandardMaterial({
+				color: 0x888888,
+				roughness: 0.3,
+				metalness: 0.7,
+			})
+		);
+		chain1.position.set(x - worldW * 0.35, 7.5, z);
+		chain1.rotation.y = ry;
+		scene.add(chain1);
+		const chain2 = new THREE.Mesh(
+			new THREE.CylinderGeometry(0.012, 0.012, 1.5, 6),
+			new THREE.MeshStandardMaterial({
+				color: 0x888888,
+				roughness: 0.3,
+				metalness: 0.7,
+			})
+		);
+		chain2.position.set(x + worldW * 0.35, 7.5, z);
+		chain2.rotation.y = ry;
+		scene.add(chain2);
+		const sfr = box(worldW, 0.7, 0.05, 0x25120e, 0.7);
+		sfr.position.set(x, 6.7, z);
+		sfr.rotation.y = ry;
+		scene.add(sfr);
+		const signTex = canvasTexture(sC);
+		const sm = new THREE.Mesh(
+			new THREE.PlaneGeometry(worldW - 0.15, 0.58),
+			textureMaterial(signTex, {
+				roughness: 0.6,
+				emissive: color,
+				emissiveMap: signTex,
+				emissiveIntensity: 0.15,
+			})
+		);
+		sm.position.set(x + Math.sin(ry) * 0.03, 6.7, z + Math.cos(ry) * 0.03);
+		sm.rotation.y = ry;
+		scene.add(sm);
 	};
 	// Signs hanging from ceiling pointing to each zone
-	makeHangingSign( 0,   -3.2, 0,            "MENU",        "▼", 0xe8a946);
-	makeHangingSign(-5.0, -1.8, Math.PI*0.1,  "ABOUT",       "◄", 0xcc2828);
-	makeHangingSign( 5.0, -1.8, -Math.PI*0.1, "LEADERBOARD", "►", 0x2255cc);
+	makeHangingSign(0, -3.2, 0, "MENU", "▼", 0xe8a946);
+	makeHangingSign(-5.0, -1.8, Math.PI * 0.1, "ABOUT", "◄", 0xcc2828);
+	makeHangingSign(5.0, -1.8, -Math.PI * 0.1, "LEADERBOARD", "►", 0x2255cc);
 
-	// ── TV SCREENS (right wall – leaderboard zone only) ──────
-	// Store 3D world positions for iframe overlay projection
-	const TV_POSITIONS = [
-		new THREE.Vector3(13.5, 5.1, -4.2),   // twitch tv
-		new THREE.Vector3(13.5, 5.1, -7.2),   // leaderboard tv
-	];
-	const makeTV = (z: number) => {
-		const tvFrame = box(3.1, 2.1, 0.12, 0x080808, 0.3, 0.5); tvFrame.rotation.y = -Math.PI/2; tvFrame.position.set(13.84, 5.1, z); scene.add(tvFrame);
+	// ── IN-WORLD TV CABINETS (right wall, no DOM overlays) ──────
+	const liveScreens: {
+		ctx: CanvasRenderingContext2D;
+		texture: THREE.CanvasTexture;
+		mode: "twitch" | "leaderboard";
+	}[] = [];
+	const makeTV = (
+		z: number,
+		mode: "twitch" | "leaderboard",
+		accent: number
+	) => {
+		const frameColor = mode === "twitch" ? 0x160916 : 0x070d18;
+		const tvFrame = roundedBox(3.55, 2.35, 0.2, frameColor, 0.07, 0.32, 0.45);
+		tvFrame.rotation.y = -Math.PI / 2;
+		tvFrame.position.set(13.82, 4.75, z);
+		scene.add(tvFrame);
+
+		const lip = roundedBox(3.75, 2.55, 0.08, 0x060302, 0.05, 0.36, 0.5);
+		lip.rotation.y = -Math.PI / 2;
+		lip.position.set(13.88, 4.75, z);
+		scene.add(lip);
+
+		const bracket = box(0.14, 1.5, 0.9, 0x050505, 0.42, 0.72);
+		bracket.rotation.y = -Math.PI / 2;
+		bracket.position.set(13.94, 4.75, z);
+		scene.add(bracket);
+
 		// animated canvas TV screen
-		const tvC = document.createElement("canvas"); tvC.width = 512; tvC.height = 330;
+		const tvC = document.createElement("canvas");
+		tvC.width = 768;
+		tvC.height = 432;
 		const tvCtx = tvC.getContext("2d")!;
-		tvCtx.fillStyle = "#00060f"; tvCtx.fillRect(0,0,512,330);
-		const scanGrad = tvCtx.createLinearGradient(0,0,0,330);
-		scanGrad.addColorStop(0, "rgba(0,100,255,0.35)"); scanGrad.addColorStop(0.5, "rgba(0,60,180,0.12)"); scanGrad.addColorStop(1, "rgba(0,100,255,0.35)");
-		tvCtx.fillStyle = scanGrad; tvCtx.fillRect(0,0,512,330);
-		tvCtx.fillStyle = "#4488ff"; tvCtx.font = "bold 28px 'Arial Black', sans-serif"; tvCtx.textAlign = "center";
-		tvCtx.fillText(z < -6 ? "LEADERBOARD" : "TWITCH LIVE", 256, 60);
-		tvCtx.fillStyle = "rgba(255,0,0,0.9)"; tvCtx.font = "bold 22px sans-serif";
-		tvCtx.fillText("● LIVE", 256, 100);
-		tvCtx.fillStyle = "rgba(100,180,255,0.5)"; tvCtx.font = "18px Arial";
-		tvCtx.fillText(z < -6 ? "walk closer & press E" : "walk closer & press E", 256, 280);
-		const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(tvC), emissive: 0x002244, emissiveMap: new THREE.CanvasTexture(tvC), emissiveIntensity: 0.8, roughness: 0.1 }));
-		tvScreen.rotation.y = -Math.PI/2; tvScreen.position.set(13.78, 5.1, z); scene.add(tvScreen);
-		const tvGlow = new THREE.PointLight(0x4488ff, 0.6, 3, 2); tvGlow.position.set(12.5, 5.1, z); scene.add(tvGlow); return tvGlow;
+		const tvTex = canvasTexture(tvC);
+		const tvScreen = new THREE.Mesh(
+			new THREE.PlaneGeometry(3.05, 1.72),
+			textureMaterial(tvTex, {
+				emissive: accent,
+				emissiveMap: tvTex,
+				emissiveIntensity: 0.9,
+				roughness: 0.1,
+				metalness: 0.05,
+			})
+		);
+		tvScreen.rotation.y = -Math.PI / 2;
+		tvScreen.position.set(13.68, 4.75, z);
+		scene.add(tvScreen);
+
+		const statusBulb = new THREE.Mesh(
+			new THREE.SphereGeometry(0.055, 16, 10),
+			new THREE.MeshStandardMaterial({
+				color: mode === "twitch" ? C.red : C.butter,
+				emissive: mode === "twitch" ? C.red : C.butter,
+				emissiveIntensity: 1.6,
+				roughness: 0.25,
+			})
+		);
+		statusBulb.position.set(13.56, 5.77, z - 1.35);
+		scene.add(statusBulb);
+
+		const tvGlow = new THREE.PointLight(accent, 0.75, 4.2, 2);
+		tvGlow.position.set(12.4, 4.75, z);
+		scene.add(tvGlow);
+		liveScreens.push({ ctx: tvCtx, texture: tvTex, mode });
+		return tvGlow;
 	};
-	const tv1Glow = makeTV(-4.2);
-	const tv2Glow = makeTV(-7.2);
+	const tv1Glow = makeTV(-4.85, "twitch", 0x6444ff);
+	const tv2Glow = makeTV(-1.05, "leaderboard", 0x4488ff);
+	const renderLiveScreen = (
+		screen: (typeof liveScreens)[number],
+		time: number,
+		frame: number
+	) => {
+		const { ctx, texture, mode } = screen;
+		const w = ctx.canvas.width;
+		const h = ctx.canvas.height;
+		const bg = ctx.createLinearGradient(0, 0, w, h);
+		bg.addColorStop(0, mode === "twitch" ? "#110525" : "#041027");
+		bg.addColorStop(0.55, "#050508");
+		bg.addColorStop(1, mode === "twitch" ? "#2a0612" : "#071a2f");
+		ctx.fillStyle = bg;
+		ctx.fillRect(0, 0, w, h);
+		ctx.fillStyle = "rgba(255,255,255,0.055)";
+		for (let y = 0; y < h; y += 8) ctx.fillRect(0, y, w, 1);
+		setCanvasNoise(ctx, w, h, 0.05);
+		const pulse = 0.5 + Math.sin(time * 2.4) * 0.5;
+		const accent = mode === "twitch" ? "#9d65ff" : "#4fb8ff";
+		ctx.fillStyle = accent;
+		ctx.shadowColor = accent;
+		ctx.shadowBlur = 24 + pulse * 16;
+		ctx.font = "bold 42px 'Arial Black', Impact, sans-serif";
+		ctx.textAlign = "left";
+		ctx.fillText(mode === "twitch" ? "TWITCH LIVE" : "WATCHTIME BOARD", 42, 70);
+		ctx.shadowBlur = 0;
+		ctx.fillStyle = mode === "twitch" ? "#ff4040" : "#e8a946";
+		ctx.font = "bold 22px Arial, sans-serif";
+		ctx.fillText(
+			mode === "twitch" ? "ON AIR WHEN MAC IS LIVE" : "TOP GREASE THIS MONTH",
+			46,
+			112
+		);
+		ctx.strokeStyle = "rgba(255,242,200,0.22)";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(34, 30, w - 68, h - 60);
+		ctx.fillStyle = "rgba(255,242,200,0.9)";
+		ctx.font = "bold 24px Arial, sans-serif";
+		if (mode === "twitch") {
+			[
+				"GreasyMac camera feed",
+				"Chat crawl: !lurk !discord !watchtime",
+				"Signal source: CMS / Twitch",
+			].forEach((line, i) => ctx.fillText(line, 56, 174 + i * 52));
+			ctx.fillStyle = "rgba(255,64,64,0.85)";
+			ctx.beginPath();
+			ctx.arc(58 + Math.sin(time * 3) * 4, 340, 13 + pulse * 4, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = "#fff2c8";
+			ctx.font = "bold 34px Impact, sans-serif";
+			ctx.fillText("LIVE DINER TV", 92, 350);
+		} else {
+			[
+				"1  greasymac     extra sauced",
+				"2  chat          still arguing",
+				"3  greasygang    no refunds",
+				"4  twitchplays   in progress",
+			].forEach((line, i) => ctx.fillText(line, 56, 170 + i * 48));
+			ctx.fillStyle = "rgba(79,184,255,0.38)";
+			ctx.fillRect(42 + ((frame * 7) % 520), 338, 160, 7);
+		}
+		texture.needsUpdate = true;
+	};
 
 	// ── WINDOW (right wall, near entrance) – framed, not a blob ──
 	const makeWindow = () => {
 		// outer frame
-		const wFrame = box(3.2, 2.6, 0.1, 0x1a0d06, 0.7); wFrame.rotation.y = -Math.PI/2; wFrame.position.set(13.84, 3.6, 2.5); scene.add(wFrame);
+		const wFrame = box(3.2, 2.6, 0.1, 0x1a0d06, 0.7);
+		wFrame.rotation.y = -Math.PI / 2;
+		wFrame.position.set(13.84, 3.6, 2.5);
+		scene.add(wFrame);
 		// sill
-		const wSill = box(0.08, 0.12, 3.3, 0x0d0703, 0.4, 0.3); wSill.position.set(13.82, 2.38, 2.5); scene.add(wSill);
+		const wSill = box(0.08, 0.12, 3.3, 0x0d0703, 0.4, 0.3);
+		wSill.position.set(13.82, 2.38, 2.5);
+		scene.add(wSill);
 		// glass – night cityscape
-		const wC = document.createElement("canvas"); wC.width = 512; wC.height = 384;
+		const wC = document.createElement("canvas");
+		wC.width = 512;
+		wC.height = 384;
 		const wctx = wC.getContext("2d")!;
 		// sky gradient
-		const skyG = wctx.createLinearGradient(0,0,0,384);
-		skyG.addColorStop(0, "#0a0318"); skyG.addColorStop(0.6, "#1a0818"); skyG.addColorStop(1, "#2a0c10");
-		wctx.fillStyle = skyG; wctx.fillRect(0,0,512,384);
+		const skyG = wctx.createLinearGradient(0, 0, 0, 384);
+		skyG.addColorStop(0, "#0a0318");
+		skyG.addColorStop(0.6, "#1a0818");
+		skyG.addColorStop(1, "#2a0c10");
+		wctx.fillStyle = skyG;
+		wctx.fillRect(0, 0, 512, 384);
 		// city buildings silhouette
 		wctx.fillStyle = "#090308";
-		[[0,180,55,204],[60,200,40,384],[110,170,50,384],[165,185,65,384],[235,160,45,384],[290,195,70,384],[370,175,55,384],[430,188,80,384]].forEach(([x,y,w,h]) => wctx.fillRect(x,y,w,h));
+		[
+			[0, 180, 55, 204],
+			[60, 200, 40, 384],
+			[110, 170, 50, 384],
+			[165, 185, 65, 384],
+			[235, 160, 45, 384],
+			[290, 195, 70, 384],
+			[370, 175, 55, 384],
+			[430, 188, 80, 384],
+		].forEach(([x, y, w, h]) => wctx.fillRect(x, y, w, h));
 		// windows in buildings
 		wctx.fillStyle = "rgba(255,220,120,0.85)";
-		for (let b = 0; b < 55; b++) wctx.fillRect(Math.random()*490+5, 185+Math.random()*160, 5, 7);
+		for (let b = 0; b < 55; b++)
+			wctx.fillRect(Math.random() * 490 + 5, 185 + Math.random() * 160, 5, 7);
 		wctx.fillStyle = "rgba(180,220,255,0.6)";
-		for (let b = 0; b < 25; b++) wctx.fillRect(Math.random()*490+5, 185+Math.random()*160, 5, 7);
+		for (let b = 0; b < 25; b++)
+			wctx.fillRect(Math.random() * 490 + 5, 185 + Math.random() * 160, 5, 7);
 		// distant neon glow on horizon
-		const horizG = wctx.createLinearGradient(0,280,0,384);
-		horizG.addColorStop(0, "rgba(255,80,20,0)"); horizG.addColorStop(1, "rgba(255,80,20,0.25)");
-		wctx.fillStyle = horizG; wctx.fillRect(0,280,512,104);
+		const horizG = wctx.createLinearGradient(0, 280, 0, 384);
+		horizG.addColorStop(0, "rgba(255,80,20,0)");
+		horizG.addColorStop(1, "rgba(255,80,20,0.25)");
+		wctx.fillStyle = horizG;
+		wctx.fillRect(0, 280, 512, 104);
 		// window cross bar
-		wctx.fillStyle = "#1a0d06"; wctx.fillRect(248,0,16,384); wctx.fillRect(0,184,512,12);
-		const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 2.3), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(wC), roughness: 0.08, metalness: 0.08, emissive: 0x110410, emissiveIntensity: 0.5 }));
-		winGlass.rotation.y = -Math.PI/2; winGlass.position.set(13.76, 3.6, 2.5); scene.add(winGlass);
+		wctx.fillStyle = "#1a0d06";
+		wctx.fillRect(248, 0, 16, 384);
+		wctx.fillRect(0, 184, 512, 12);
+		const winTex = canvasTexture(wC);
+		const winGlass = new THREE.Mesh(
+			new THREE.PlaneGeometry(2.9, 2.3),
+			textureMaterial(winTex, {
+				roughness: 0.08,
+				metalness: 0.08,
+				emissive: 0x110410,
+				emissiveIntensity: 0.5,
+			})
+		);
+		winGlass.rotation.y = -Math.PI / 2;
+		winGlass.position.set(13.76, 3.6, 2.5);
+		scene.add(winGlass);
 		// subtle outward light cast
 		const winLight = new THREE.PointLight(0xff6633, 0.8, 6, 2.0);
-		winLight.position.set(12.5, 3.6, 2.5); scene.add(winLight);
+		winLight.position.set(12.5, 3.6, 2.5);
+		scene.add(winLight);
 	};
 	makeWindow();
 
 	// grease puddles
-	([[1.2, -2.5], [-2.8, -5.0], [3.0, -7.2]] as [number,number][]).forEach(([px, pz]) => {
-		const pC = document.createElement("canvas"); pC.width = 256; pC.height = 128;
+	(
+		[
+			[1.2, -2.5],
+			[-2.8, -5.0],
+			[3.0, -7.2],
+		] as [number, number][]
+	).forEach(([px, pz]) => {
+		const pC = document.createElement("canvas");
+		pC.width = 256;
+		pC.height = 128;
 		const pctx = pC.getContext("2d")!;
-		const pg = pctx.createRadialGradient(128,64,4,128,64,92);
-		pg.addColorStop(0,"rgba(200,145,50,0.55)"); pg.addColorStop(0.5,"rgba(130,90,22,0.22)"); pg.addColorStop(1,"rgba(0,0,0,0)");
-		pctx.fillStyle = pg; pctx.ellipse(128,64,112,56,0.3,0,Math.PI*2); pctx.fill();
-		const pm = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(pC), transparent: true, roughness: 0.08, metalness: 0.55, depthWrite: false }));
-		pm.rotation.x = -Math.PI/2; pm.position.set(px, 0.005, pz); scene.add(pm);
+		const pg = pctx.createRadialGradient(128, 64, 4, 128, 64, 92);
+		pg.addColorStop(0, "rgba(200,145,50,0.55)");
+		pg.addColorStop(0.5, "rgba(130,90,22,0.22)");
+		pg.addColorStop(1, "rgba(0,0,0,0)");
+		pctx.fillStyle = pg;
+		pctx.ellipse(128, 64, 112, 56, 0.3, 0, Math.PI * 2);
+		pctx.fill();
+		const pm = new THREE.Mesh(
+			new THREE.PlaneGeometry(2.8, 1.4),
+			new THREE.MeshStandardMaterial({
+				map: canvasTexture(pC),
+				transparent: true,
+				roughness: 0.08,
+				metalness: 0.55,
+				depthWrite: false,
+			})
+		);
+		pm.rotation.x = -Math.PI / 2;
+		pm.position.set(px, 0.005, pz);
+		scene.add(pm);
 	});
 
 	// steam
@@ -656,50 +2512,126 @@ onMounted(() => {
 	const sPos = new Float32Array(STEAM * 3);
 	const sPhase = new Float32Array(STEAM);
 	for (let i = 0; i < STEAM; i++) {
-		sPos[i*3] = (Math.random()-0.5)*10; sPos[i*3+1] = 1.2+Math.random()*2.5; sPos[i*3+2] = -8.8+(Math.random()-0.5)*0.8;
-		sPhase[i] = Math.random()*Math.PI*2;
+		sPos[i * 3] = (Math.random() - 0.5) * 10;
+		sPos[i * 3 + 1] = 1.2 + Math.random() * 2.5;
+		sPos[i * 3 + 2] = -8.8 + (Math.random() - 0.5) * 0.8;
+		sPhase[i] = Math.random() * Math.PI * 2;
 	}
 	const steamGeo = new THREE.BufferGeometry();
 	steamGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
-	const steamMat = new THREE.PointsMaterial({ color: 0xddccbb, size: 0.2, transparent: true, opacity: 0.16, sizeAttenuation: true, depthWrite: false });
-	const steam = new THREE.Points(steamGeo, steamMat); scene.add(steam);
+	const steamMat = new THREE.PointsMaterial({
+		color: 0xddccbb,
+		size: 0.2,
+		transparent: true,
+		opacity: 0.16,
+		sizeAttenuation: true,
+		depthWrite: false,
+	});
+	const steam = new THREE.Points(steamGeo, steamMat);
+	scene.add(steam);
 
 	// ── LIGHTING ─────────────────────────────────────
-	// Brighter base so nothing is pitch black
-	scene.add(new THREE.AmbientLight(0x6b3820, 0.72));
+	// Warm base so nothing is pitch black, with a cool ceiling wash for contrast.
+	scene.add(new THREE.AmbientLight(0x8a4b28, 0.5));
+	scene.add(new THREE.HemisphereLight(0xffd39a, 0x160604, 0.42));
 
 	// Back wall warm rim (neon sign glow)
-	const rimLight = new THREE.PointLight(C.redDark, 2.2, 18, 1.5);
-	rimLight.position.set(0, 6.5, -11); scene.add(rimLight);
+	const rimLight = new THREE.PointLight(C.redDark, 2.8, 18, 1.5);
+	rimLight.position.set(0, 6.5, -11);
+	scene.add(rimLight);
 
 	// Front fill – player zone is well-lit
-	const fillLight = new THREE.DirectionalLight(0xffbb66, 0.45);
-	fillLight.position.set(0, 6, 9); scene.add(fillLight);
+	const fillLight = new THREE.DirectionalLight(0xffbb66, 0.72);
+	fillLight.position.set(0, 6, 9);
+	scene.add(fillLight);
+	const counterWash = new THREE.SpotLight(
+		0xffc777,
+		3.2,
+		13,
+		Math.PI / 4,
+		0.55,
+		1.3
+	);
+	counterWash.position.set(0, 6.8, -3.4);
+	counterWash.target.position.set(0, 1.1, -8.6);
+	counterWash.castShadow = true;
+	counterWash.shadow.mapSize.set(512, 512);
+	scene.add(counterWash);
+	scene.add(counterWash.target);
+	const entryWash = new THREE.PointLight(0xff9f55, 1.35, 12, 1.7);
+	entryWash.position.set(0, 3.2, 3.5);
+	scene.add(entryWash);
 
 	// Left wall dedicated fill (about / lore zone)
-	const leftFill1 = new THREE.PointLight(0xff4422, 1.6, 12, 1.4);
-	leftFill1.position.set(-10, 4.5, -4); scene.add(leftFill1);
+	const leftFill1 = new THREE.PointLight(0xff4422, 1.9, 12, 1.4);
+	leftFill1.position.set(-10, 4.5, -4);
+	scene.add(leftFill1);
 	const leftFill2 = new THREE.PointLight(0xffaa44, 1.2, 10, 1.5);
-	leftFill2.position.set(-10, 4.5, -9); scene.add(leftFill2);
+	leftFill2.position.set(-10, 4.5, -9);
+	scene.add(leftFill2);
 
 	// Right wall dedicated fill (leaderboard / TV zone)
-	const rightFill1 = new THREE.PointLight(0x2266ff, 1.4, 12, 1.4);
-	rightFill1.position.set(10, 4.5, -4); scene.add(rightFill1);
+	const rightFill1 = new THREE.PointLight(0x2266ff, 1.7, 12, 1.4);
+	rightFill1.position.set(10, 4.5, -4);
+	scene.add(rightFill1);
 	const rightFill2 = new THREE.PointLight(0x4488ff, 1.2, 10, 1.5);
-	rightFill2.position.set(10, 4.5, -9); scene.add(rightFill2);
+	rightFill2.position.set(10, 4.5, -9);
+	scene.add(rightFill2);
 
 	// Mid-room overhead fill lights so walking anywhere is readable
-	const midLeft  = new THREE.PointLight(0xffcc88, 1.0, 14, 1.6);
-	midLeft.position.set(-5, 5.5, -2); scene.add(midLeft);
+	const midLeft = new THREE.PointLight(0xffcc88, 1.0, 14, 1.6);
+	midLeft.position.set(-5, 5.5, -2);
+	scene.add(midLeft);
 	const midRight = new THREE.PointLight(0xffcc88, 1.0, 14, 1.6);
-	midRight.position.set( 5, 5.5, -2); scene.add(midRight);
-	const midBack  = new THREE.PointLight(0xffcc88, 0.9, 14, 1.6);
-	midBack.position.set(0, 5.5, -6); scene.add(midBack);
+	midRight.position.set(5, 5.5, -2);
+	scene.add(midRight);
+	const midBack = new THREE.PointLight(0xffcc88, 0.9, 14, 1.6);
+	midBack.position.set(0, 5.5, -6);
+	scene.add(midBack);
 
 	// ── POINTER LOCK + INTERACTION ───────────────────
 	const PI_2 = Math.PI / 2;
 	const raycaster = new THREE.Raycaster();
 	let locked = false;
+	const centerNDC = new THREE.Vector2(0, 0);
+	const clearFocusedSocial = () => {
+		focusedLink.value = null;
+		focusedLinkLabel.value = null;
+		socialLinks.forEach(item => {
+			const mat = item.visual.material as THREE.MeshStandardMaterial;
+			mat.emissiveIntensity = 0.88;
+			item.visual.scale.setScalar(1);
+		});
+	};
+
+	const getSocialHit = (pointer?: THREE.Vector2) => {
+		raycaster.setFromCamera(pointer ?? centerNDC, camera);
+		const hits = raycaster.intersectObjects(
+			socialLinks.map(link => link.hitbox),
+			false
+		);
+		const firstHit = hits[0];
+		if (!firstHit || firstHit.distance > 3.8) return null;
+		const hitObject = firstHit.object as THREE.Mesh | undefined;
+		if (!hitObject) return null;
+		return socialLinks.find(link => link.hitbox === hitObject) ?? null;
+	};
+
+	const updateFocusedLink = () => {
+		if (nearZone.value !== "none") {
+			clearFocusedSocial();
+			return;
+		}
+		const link = getSocialHit();
+		focusedLink.value = link?.href ?? null;
+		focusedLinkLabel.value = link?.label ?? null;
+		socialLinks.forEach(item => {
+			const mat = item.visual.material as THREE.MeshStandardMaterial;
+			const active = item.href === focusedLink.value;
+			mat.emissiveIntensity = active ? 1.9 : 0.88;
+			item.visual.scale.setScalar(active ? 1.045 : 1);
+		});
+	};
 
 	// Mouse move: look when locked, update cursor hover when unlocked
 	const mouseNDC = new THREE.Vector2();
@@ -716,8 +2648,7 @@ onMounted(() => {
 		const rect = el.getBoundingClientRect();
 		mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
 		mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-		raycaster.setFromCamera(mouseNDC, camera);
-		const hit = socialLinks.some(({ mesh }) => raycaster.intersectObject(mesh).length > 0);
+		const hit = !!getSocialHit(mouseNDC);
 		el.style.cursor = hit ? "pointer" : "default";
 	};
 	const onLockChange = () => {
@@ -731,21 +2662,30 @@ onMounted(() => {
 		if (e.code === "KeyE") handleInteract();
 		if (e.code === "Escape" && activeSection.value !== "none") closeSection();
 	};
-	const onKeyUp = (e: KeyboardEvent) => { keys[e.code] = false; };
+	const onKeyUp = (e: KeyboardEvent) => {
+		keys[e.code] = false;
+	};
 
 	// clicking canvas: raycasting for social buttons OR pointer lock
 	const onCanvasClick = (e: MouseEvent) => {
+		if (!isSceneReady.value) return;
 		if (activeSection.value !== "none") return;
+		if (locked) {
+			if (nearZone.value !== "none") return;
+			const hit = getSocialHit();
+			if (hit) {
+				window.open(hit.href, "_blank", "noopener noreferrer");
+			}
+			return;
+		}
 		// Try raycasting against social link buttons first (works without pointer lock)
 		const rect = el.getBoundingClientRect();
 		const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
 		const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-		raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-		for (const { mesh, href } of socialLinks) {
-			if (raycaster.intersectObject(mesh).length > 0) {
-				window.open(href, "_blank", "noopener noreferrer");
-				return;
-			}
+		const hit = getSocialHit(new THREE.Vector2(ndcX, ndcY));
+		if (hit) {
+			window.open(hit.href, "_blank", "noopener noreferrer");
+			return;
 		}
 		// Otherwise grab pointer lock
 		el.requestPointerLock();
@@ -759,6 +2699,32 @@ onMounted(() => {
 	// ── RENDER LOOP ───────────────────────────────────
 	const clock = new THREE.Clock();
 	let tick = 0;
+	let markedSceneReady = false;
+	let readyTimeout: ReturnType<typeof window.setTimeout> | undefined;
+	const loadStartedAt = performance.now();
+	const PLAYER_RADIUS = 0.28;
+	const isBlocked = (x: number, z: number, room: RoomKey) => {
+		return ROOM_COLLIDERS[room].some(
+			collider =>
+				x > collider.minX - PLAYER_RADIUS &&
+				x < collider.maxX + PLAYER_RADIUS &&
+				z > collider.minZ - PLAYER_RADIUS &&
+				z < collider.maxZ + PLAYER_RADIUS
+		);
+	};
+	const clampToRoom = (x: number, z: number, room: RoomKey) => {
+		const bounds = ROOM_BOUNDS[room];
+		return {
+			x: Math.max(
+				bounds.minX + PLAYER_RADIUS,
+				Math.min(bounds.maxX - PLAYER_RADIUS, x)
+			),
+			z: Math.max(
+				bounds.minZ + PLAYER_RADIUS,
+				Math.min(bounds.maxZ - PLAYER_RADIUS, z)
+			),
+		};
+	};
 	const loop = () => {
 		animId = requestAnimationFrame(loop);
 		const delta = Math.min(clock.getDelta(), 0.05);
@@ -766,20 +2732,24 @@ onMounted(() => {
 		const t = tick * 0.005;
 
 		// walking (only when locked AND no panel open)
-		if (locked && activeSection.value === "none") {
+		if (locked && activeSection.value === "none" && !isTeleporting.value) {
 			dir.set(0, 0, 0);
-			if (keys["KeyW"] || keys["ArrowUp"])    dir.z = -1;
-			if (keys["KeyS"] || keys["ArrowDown"])  dir.z =  1;
-			if (keys["KeyA"] || keys["ArrowLeft"])  dir.x = -1;
-			if (keys["KeyD"] || keys["ArrowRight"]) dir.x =  1;
+			if (keys["KeyW"] || keys["ArrowUp"]) dir.z = -1;
+			if (keys["KeyS"] || keys["ArrowDown"]) dir.z = 1;
+			if (keys["KeyA"] || keys["ArrowLeft"]) dir.x = -1;
+			if (keys["KeyD"] || keys["ArrowRight"]) dir.x = 1;
 			if (dir.length() > 0) {
 				dir.normalize();
 				const moveEuler = new THREE.Euler(0, euler.y, 0);
 				dir.applyEuler(moveEuler);
 				vel.copy(dir).multiplyScalar(5.5 * delta);
-				camera.position.add(vel);
-				camera.position.x = Math.max(-12.0, Math.min(12.0, camera.position.x));
-				camera.position.z = Math.max(-10.8, Math.min(7.5, camera.position.z));
+				const room = currentRoom.value;
+				const prevX = camera.position.x;
+				const prevZ = camera.position.z;
+				let next = clampToRoom(prevX + vel.x, prevZ, room);
+				if (!isBlocked(next.x, next.z, room)) camera.position.x = next.x;
+				next = clampToRoom(camera.position.x, prevZ + vel.z, room);
+				if (!isBlocked(next.x, next.z, room)) camera.position.z = next.z;
 				camera.position.y = 1.65;
 			}
 		}
@@ -788,83 +2758,127 @@ onMounted(() => {
 		let closest: ZoneKey = "none";
 		let closestDist = Infinity;
 		for (const zone of ZONES) {
+			if ((zone.room ?? "main") !== currentRoom.value) continue;
 			const dx = camera.position.x - zone.cx;
 			const dz = camera.position.z - zone.cz;
-			const dist = Math.sqrt(dx*dx + dz*dz);
+			const dist = Math.sqrt(dx * dx + dz * dz);
 			if (dist < zone.radius && dist < closestDist) {
-				closest = zone.key; closestDist = dist;
+				closest = zone.key;
+				closestDist = dist;
 			}
 		}
 		nearZone.value = closest;
-		// near TV = inside leaderboard zone close to the right wall
-		const distToTV = Math.sqrt((camera.position.x - 10.5)**2 + (camera.position.z + 6.5)**2);
-		nearTV.value = distToTV < 3.8;
-
-		// project all TV screen world positions → screen space for iframe overlays
-		if (renderer) {
-			const size = renderer.getSize(new THREE.Vector2());
-			TV_POSITIONS.forEach((wp, i) => {
-				const proj = wp.clone().project(camera);
-				const sx = (proj.x *  0.5 + 0.5) * size.x;
-				const sy = (proj.y * -0.5 + 0.5) * size.y;
-				const inFront = proj.z < 1.0;
-				const distTV0 = Math.sqrt((camera.position.x - 12.5)**2 + (camera.position.z + 4.2)**2);
-				const distTV1 = Math.sqrt((camera.position.x - 12.5)**2 + (camera.position.z + 7.2)**2);
-				const dists = [distTV0, distTV1];
-				tvOverlays.value[i] = {
-					id: ["twitch", "leaderboard"][i],
-					x: sx, y: sy,
-					visible: inFront && dists[i] < 5.5,
-				};
-			});
+		if (locked && activeSection.value === "none") updateFocusedLink();
+		else {
+			focusedLink.value = null;
+			focusedLinkLabel.value = null;
 		}
-
 		// zone glow pulse
-		const inMenu  = nearest("menu");
+		const inMenu = nearest("menu");
 		const inAbout = nearest("about");
-		const inLB    = nearest("leaderboard");
-		function nearest(k: ZoneKey) { return nearZone.value === k; }
+		const inLB = nearest("leaderboard");
+		const inJukebox = nearest("jukebox");
+		const inLore = nearest("loreRoom");
+		const inFishRoom = nearest("fishRoom");
+		const inLiveRoom = nearest("liveRoom");
+		function nearest(k: ZoneKey) {
+			return nearZone.value === k;
+		}
 		const gp = 0.55 + Math.sin(t * 3.5) * 0.35;
-		;(menuGlow.material  as THREE.MeshStandardMaterial).opacity = inMenu  ? gp : 0.22;
-		;(aboutGlow.material as THREE.MeshStandardMaterial).opacity = inAbout ? gp : 0.22;
-		;(lbGlow.material    as THREE.MeshStandardMaterial).opacity = inLB    ? gp : 0.22;
+		(menuGlow.material as THREE.MeshStandardMaterial).opacity = inMenu
+			? gp
+			: 0.22;
+		(aboutGlow.material as THREE.MeshStandardMaterial).opacity = inAbout
+			? gp
+			: 0.22;
+		(lbGlow.material as THREE.MeshStandardMaterial).opacity = inLB ? gp : 0.22;
+		(jukeboxGlow.material as THREE.MeshStandardMaterial).opacity = inJukebox
+			? gp
+			: 0.2;
+		(loreGlow.material as THREE.MeshStandardMaterial).opacity = inLore
+			? gp
+			: 0.18;
+		(fishRoomGlow.material as THREE.MeshStandardMaterial).opacity = inFishRoom
+			? gp
+			: 0.18;
+		(liveRoomGlow.material as THREE.MeshStandardMaterial).opacity = inLiveRoom
+			? gp
+			: 0.18;
+
+		loreDoor.glow.intensity = (inLore ? 1.25 : 0.52) + Math.sin(t * 2.4) * 0.12;
+		fishDoor.glow.intensity =
+			(inFishRoom ? 1.3 : 0.56) + Math.sin(t * 2.1 + 1.4) * 0.12;
+		liveDoor.glow.intensity =
+			(inLiveRoom ? 1.35 : 0.58) + Math.sin(t * 2.8 + 0.6) * 0.14;
 
 		// neon flicker
-		neonMesh.material.emissiveIntensity = 2.2 + Math.sin(t*1.9)*0.6 + (Math.random()>0.988 ? -1.5 : 0);
-		neonLight.intensity = 2.8 + Math.sin(t*2.2)*0.7;
-		const of = Math.sin(t*4.1) > 0.5 ? 1.0 : (Math.random()>0.96 ? 0.08 : 1.0);
+		const neonDrop = tick % 283 === 0 ? -1.35 : 0;
+		neonMesh.material.emissiveIntensity =
+			2.2 + Math.sin(t * 1.9) * 0.6 + neonDrop;
+		neonLight.intensity = 2.8 + Math.sin(t * 2.2) * 0.7;
+		const of = Math.sin(t * 4.1) > 0.5 || tick % 191 > 5 ? 1.0 : 0.08;
 		openSign.light.intensity = of * 1.1;
-		(openSign.mesh.material  as THREE.MeshStandardMaterial).emissiveIntensity = of * 2.4;
-		greaseTube.light.intensity = 0.8 + Math.sin(t*1.3)*0.3;
-		lampLights.forEach((pl, i) => { pl.intensity = 3.5 + Math.sin(t*(1.5+i*0.4)+i)*0.5 + (Math.random()>0.97 ? -1 : 0); });
-		jbGlow.intensity = 0.85 + Math.sin(t*4.5)*0.5;
-		tv1Glow.intensity = 0.5 + Math.sin(t*0.8)*0.2;
-		tv2Glow.intensity = 0.5 + Math.sin(t*0.9+1)*0.2;
-		rimLight.intensity = 2.0 + Math.sin(t*0.9)*0.4;
+		(openSign.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity =
+			of * 2.4;
+		greaseTube.light.intensity = 0.8 + Math.sin(t * 1.3) * 0.3;
+		lampLights.forEach((pl, i) => {
+			pl.intensity =
+				3.5 +
+				Math.sin(t * (1.5 + i * 0.4) + i) * 0.5 +
+				(tick % (241 + i * 37) === 0 ? -0.85 : 0);
+		});
+		jbGlow.intensity = (inJukebox ? 1.4 : 0.85) + Math.sin(t * 4.5) * 0.42;
+		macGlow.intensity = 0.85 + Math.sin(t * 2.1) * 0.2;
+		(talkSign.material as THREE.MeshStandardMaterial).emissiveIntensity =
+			0.22 + Math.sin(t * 3.2) * 0.07;
+		maclingRelief.position.y = 3.0 + Math.sin(t * 1.7) * 0.012;
+		maclingRelief.rotation.y = -Math.PI / 2 + Math.sin(t * 1.15) * 0.012;
+		tv1Glow.intensity = 0.5 + Math.sin(t * 0.8) * 0.2;
+		tv2Glow.intensity = 0.5 + Math.sin(t * 0.9 + 1) * 0.2;
+		if (tick % 10 === 0) {
+			liveScreens.forEach(screen => renderLiveScreen(screen, t, tick));
+		}
+		rimLight.intensity = 2.0 + Math.sin(t * 0.9) * 0.4;
 
 		// steam
 		const sp = steam.geometry.attributes.position.array as Float32Array;
 		for (let i = 0; i < STEAM; i++) {
-			sp[i*3+1] += 0.009 + Math.sin(sPhase[i]+t)*0.003;
-			sp[i*3]   += Math.sin(sPhase[i]*2+t*0.5)*0.003;
-			if (sp[i*3+1] > 4.2) { sp[i*3+1] = 1.15; sp[i*3] = (Math.random()-0.5)*10; }
+			sp[i * 3 + 1] += 0.009 + Math.sin(sPhase[i] + t) * 0.003;
+			sp[i * 3] += Math.sin(sPhase[i] * 2 + t * 0.5) * 0.003;
+			if (sp[i * 3 + 1] > 4.2) {
+				sp[i * 3 + 1] = 1.15;
+				sp[i * 3] = (Math.random() - 0.5) * 10;
+			}
 		}
 		steam.geometry.attributes.position.needsUpdate = true;
-		steamMat.opacity = 0.14 + Math.sin(t*0.7)*0.04;
+		steamMat.opacity = 0.14 + Math.sin(t * 0.7) * 0.04;
 
 		renderer!.render(scene, camera);
+		if (!markedSceneReady) {
+			markedSceneReady = true;
+			// Keep the in-component loader readable after the first WebGL frame.
+			const elapsed = performance.now() - loadStartedAt;
+			const remaining = Math.max(0, 700 - elapsed);
+			readyTimeout = window.setTimeout(() => {
+				isSceneReady.value = true;
+			}, remaining);
+		}
 	};
 	loop();
 
 	const onResize = () => {
 		if (!renderer || !canvas.value) return;
-		const w = canvas.value.clientWidth, h = canvas.value.clientHeight;
-		camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+		const w = canvas.value.clientWidth,
+			h = canvas.value.clientHeight;
+		camera.aspect = w / h;
+		camera.updateProjectionMatrix();
+		renderer.setSize(w, h);
 	};
 	window.addEventListener("resize", onResize);
 
 	onUnmounted(() => {
 		cancelAnimationFrame(animId);
+		if (readyTimeout) window.clearTimeout(readyTimeout);
 		document.removeEventListener("pointerlockchange", onLockChange);
 		document.removeEventListener("mousemove", onMouseMove);
 		document.removeEventListener("keydown", onKeyDown);
@@ -874,33 +2888,91 @@ onMounted(() => {
 		renderer?.dispose();
 		if (document.pointerLockElement === el) document.exitPointerLock();
 	});
-});
+}
 </script>
 
 <template>
 	<div class="diner-root">
 		<canvas ref="canvas" class="diner-canvas" />
 
+		<Transition name="loader">
+			<div v-if="!isSceneReady" class="web-loader">
+				<div class="loader-scene" aria-hidden="true">
+					<div class="loader-back-wall">
+						<div class="loader-neon">GREASY GANG</div>
+						<div class="loader-board loader-board-left">
+							<span>MENU</span>
+							<small>discord · twitch · youtube</small>
+						</div>
+						<div class="loader-board loader-board-right">
+							<span>TODAY</span>
+							<small>hot · loud · extra</small>
+						</div>
+						<div class="loader-lamp loader-lamp-a" />
+						<div class="loader-lamp loader-lamp-b" />
+						<div class="loader-lamp loader-lamp-c" />
+					</div>
+					<div class="loader-counter" />
+					<div class="loader-floor" />
+				</div>
+				<div class="loader-copy font-bebas">
+					<p class="loader-kicker">EST. 2019 · OPEN LATE · EXTRA GREASY</p>
+					<h1>GREASYGANG</h1>
+					<p class="loader-sub">loading the diner</p>
+					<div class="loader-bar"><span /></div>
+				</div>
+			</div>
+		</Transition>
+
 		<!-- atmosphere -->
 		<div class="scanlines" aria-hidden="true" />
-		<div class="vignette"  aria-hidden="true" />
+		<div class="vignette" aria-hidden="true" />
+
+		<Transition name="fade">
+			<div v-if="isTeleporting" class="teleport-screen">
+				<div class="teleport-tunnel" aria-hidden="true">
+					<span
+						v-for="n in 9"
+						:key="n"
+						:style="{
+							width: `${12 + n * 5}rem`,
+							height: `${4 + n * 2}rem`,
+							animationDelay: `${n * -0.08}s`,
+							'--z': `${n * -42}px`,
+							'--r': `${n * 1.5}deg`,
+						}"
+					/>
+				</div>
+				<p class="teleport-title font-bebas">{{ teleportLabel }}</p>
+				<p class="teleport-sub font-bebas">follow the greasy hallway</p>
+			</div>
+		</Transition>
 
 		<!-- crosshair (only when locked) -->
-		<div v-if="isLocked && activeSection === 'none'" class="crosshair" aria-hidden="true">
+		<div
+			v-if="isLocked && activeSection === 'none' && !isTeleporting"
+			class="crosshair"
+			aria-hidden="true"
+		>
 			<span class="ch-h" /><span class="ch-v" />
 		</div>
 
 		<!-- ENTER HINT (before first click) -->
 		<Transition name="fade">
-			<div v-if="showEnterHint" class="enter-hint">
+			<div v-if="showEnterHint && isSceneReady" class="enter-hint">
 				<div class="eh-ring font-bebas">⊕</div>
 				<p class="eh-main font-bebas">CLICK TO ENTER THE DINER</p>
-				<p class="eh-sub  font-bebas">WASD WALK &nbsp;·&nbsp; MOUSE LOOK &nbsp;·&nbsp; E INTERACT</p>
+				<p class="eh-sub font-bebas">
+					WASD WALK &nbsp;·&nbsp; MOUSE LOOK &nbsp;·&nbsp; E INTERACT
+				</p>
 			</div>
 		</Transition>
 
 		<!-- HUD: movement reminder when locked -->
-		<div v-if="isLocked && activeSection === 'none'" class="hud-bar font-bebas">
+		<div
+			v-if="isLocked && activeSection === 'none' && !isTeleporting"
+			class="hud-bar font-bebas"
+		>
 			<span>W A S D — WALK</span>
 			<span class="hud-sep">·</span>
 			<span>MOUSE — LOOK</span>
@@ -912,44 +2984,45 @@ onMounted(() => {
 
 		<!-- PROXIMITY PROMPT -->
 		<Transition name="prompt">
-			<div v-if="isLocked && nearZone !== 'none' && activeSection === 'none'" class="zone-prompt font-bebas">
-				<div class="zp-emoji">{{ ZONES.find(z => z.key === nearZone)?.emoji }}</div>
+			<div
+				v-if="
+					isLocked && focusedLink && activeSection === 'none' && !isTeleporting
+				"
+				class="zone-prompt font-bebas"
+			>
+				<div class="zp-emoji">↗</div>
 				<div class="zp-key">E</div>
-				<div class="zp-label">{{ ZONES.find(z => z.key === nearZone)?.label }}</div>
+				<div class="zp-label">OPEN {{ focusedLinkLabel }}</div>
+			</div>
+			<div
+				v-else-if="
+					isLocked &&
+					nearZone !== 'none' &&
+					activeSection === 'none' &&
+					!isTeleporting
+				"
+				class="zone-prompt font-bebas"
+			>
+				<div class="zp-emoji">
+					{{ ZONES.find(z => z.key === nearZone)?.emoji }}
+				</div>
+				<div class="zp-key">E</div>
+				<div class="zp-label">
+					{{ ZONES.find(z => z.key === nearZone)?.label }}
+				</div>
 			</div>
 		</Transition>
 
 		<!-- BACK BUTTON (when a section is open) -->
 		<Transition name="fade">
-			<button v-if="activeSection !== 'none'" class="back-btn font-bebas" @click="closeSection">
+			<button
+				v-if="activeSection !== 'none'"
+				class="back-btn font-bebas"
+				@click="closeSection"
+			>
 				← BACK TO DINER
 			</button>
 		</Transition>
-
-		<!-- TV IFRAME OVERLAYS – projected from 3D world positions -->
-		<template v-if="activeSection === 'none'">
-			<div
-				v-for="tv in tvOverlays"
-				:key="tv.id"
-				class="tv-overlay"
-				:class="{ visible: tv.visible }"
-				:style="{ left: tv.x + 'px', top: tv.y + 'px' }"
-			>
-				<div class="tv-label font-bebas">{{ tv.id === 'leaderboard' ? '🏆 LEADERBOARD' : '📺 TWITCH LIVE' }}</div>
-				<template v-if="tv.visible">
-					<iframe
-						v-if="tv.id !== 'leaderboard'"
-						:src="`https://player.twitch.tv/?channel=greasymac&parent=${typeof window !== 'undefined' ? window.location.hostname : 'greasygang.co'}&muted=true&autoplay=false`"
-						class="tv-iframe"
-						allowfullscreen
-						scrolling="no"
-					/>
-					<div v-else class="tv-leaderboard-preview">
-						<WatchTime />
-					</div>
-				</template>
-			</div>
-		</template>
 
 		<!-- ══════════════════════════════════
 		     MENU PANEL
@@ -958,7 +3031,12 @@ onMounted(() => {
 			<div v-if="activeSection === 'menu'" class="section-panel panel-menu">
 				<div class="panel-header font-bebas">
 					<div class="bulb-row" aria-hidden="true">
-						<span v-for="n in 10" :key="n" class="bulb" :style="`animation-delay:${n*0.18}s`" />
+						<span
+							v-for="n in 10"
+							:key="n"
+							class="bulb"
+							:style="`animation-delay:${n * 0.18}s`"
+						/>
 					</div>
 					<div class="panel-title-wrap">
 						<p class="panel-eyebrow">GreasyGang</p>
@@ -966,7 +3044,12 @@ onMounted(() => {
 						<p class="panel-sub">no substitutions · no refunds · no mercy</p>
 					</div>
 					<div class="bulb-row" aria-hidden="true">
-						<span v-for="n in 10" :key="n" class="bulb" :style="`animation-delay:${n*0.18}s`" />
+						<span
+							v-for="n in 10"
+							:key="n"
+							class="bulb"
+							:style="`animation-delay:${n * 0.18}s`"
+						/>
 					</div>
 				</div>
 				<div class="menu-list">
@@ -979,7 +3062,9 @@ onMounted(() => {
 						class="menu-item"
 						:style="`--accent: ${btn.color}`"
 					>
-						<span class="item-num font-bebas">{{ String(i + 1).padStart(2, '0') }}</span>
+						<span class="item-num font-bebas">{{
+							String(i + 1).padStart(2, "0")
+						}}</span>
 						<span class="item-icon" :style="`background: ${btn.color}`">
 							<FontAwesomeIcon :icon="[btn.icon.type, btn.icon.name]" />
 						</span>
@@ -995,14 +3080,24 @@ onMounted(() => {
 				</div>
 				<div v-if="sponsor && sponsor.enabled" class="sponsor-strip">
 					<div class="sponsor-badge font-bebas">sponsored</div>
-					<NuxtImg densities="x1 x2" :src="$cmsImage(sponsor.image) + '/sponsor'" class="sponsor-img" :style="'object-position:' + sponsor.imagePosition" />
+					<NuxtImg
+						densities="x1 x2"
+						:src="$cmsImage(sponsor.image) + '/sponsor'"
+						class="sponsor-img"
+						:style="'object-position:' + sponsor.imagePosition"
+					/>
 					<div class="sponsor-copy">
 						<p v-if="sponsor.code" class="sponsor-code-line">
 							<span class="font-bebas sc-label">use code</span>
 							<strong class="sc-val">{{ sponsor.code }}</strong>
 						</p>
 						<p class="sponsor-desc">{{ sponsor.description }}</p>
-						<NuxtLink :href="sponsor.url" target="_blank" class="sponsor-cta font-bebas">PLAY NOW →</NuxtLink>
+						<NuxtLink
+							:href="sponsor.url"
+							target="_blank"
+							class="sponsor-cta font-bebas"
+							>PLAY NOW →</NuxtLink
+						>
 					</div>
 				</div>
 			</div>
@@ -1014,9 +3109,14 @@ onMounted(() => {
 		<Transition name="slide-left">
 			<div v-if="activeSection === 'about'" class="section-panel panel-about">
 				<div class="about-frame">
-					<div class="about-sticker sticker-a font-bebas">served<br>live</div>
-					<div class="about-sticker sticker-b font-bebas">extra<br>greasy</div>
-					<NuxtImg :src="$cmsImage('777b4597-5c15-4835-b291-fdf8b9af3524/mac-babe')" class="about-portrait" />
+					<div class="about-sticker sticker-a font-bebas">served<br />live</div>
+					<div class="about-sticker sticker-b font-bebas">
+						extra<br />greasy
+					</div>
+					<NuxtImg
+						:src="$cmsImage('777b4597-5c15-4835-b291-fdf8b9af3524/mac-babe')"
+						class="about-portrait"
+					/>
 					<div class="about-gloss" />
 				</div>
 				<div class="about-nameplate font-bebas">
@@ -1038,7 +3138,9 @@ onMounted(() => {
 						<span class="stat-label">Chaos</span>
 					</div>
 				</div>
-				<p class="about-tagline font-bebas">"hot links · loud bits · extra sauce"</p>
+				<p class="about-tagline font-bebas">
+					"hot links · loud bits · extra sauce"
+				</p>
 			</div>
 		</Transition>
 
@@ -1046,10 +3148,63 @@ onMounted(() => {
 		     LEADERBOARD PANEL
 		══════════════════════════════════ -->
 		<Transition name="slide-right">
-			<div v-if="activeSection === 'leaderboard'" class="section-panel panel-leaderboard">
+			<div
+				v-if="activeSection === 'leaderboard'"
+				class="section-panel panel-leaderboard"
+			>
 				<div class="lb-wrap">
 					<WatchTime />
 					<WatchTime all />
+				</div>
+			</div>
+		</Transition>
+
+		<!-- ══════════════════════════════════
+		     MAC TALK PANEL
+		══════════════════════════════════ -->
+		<Transition name="slide-up">
+			<div v-if="activeSection === 'mac'" class="section-panel panel-mac">
+				<div class="mac-dialogue">
+					<img
+						:src="GREASY_ASSETS.maclings.greasyHappy"
+						alt=""
+						class="mac-dialogue-img"
+					/>
+					<div class="mac-dialogue-copy">
+						<p class="panel-eyebrow">Behind the counter</p>
+						<h2 class="panel-title">GreasyMac</h2>
+						<p class="mac-line">
+							Welcome to the diner. Everything is served live, nothing is
+							refunded, and the grease is structural.
+						</p>
+						<div class="mac-options font-bebas">
+							<span>ASK ABOUT THE SPECIALS</span>
+							<span>REQUEST EXTRA SAUCE</span>
+							<span>LEAVE QUIETLY</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</Transition>
+
+		<!-- ══════════════════════════════════
+		     JUKEBOX / ROOM PANELS
+		══════════════════════════════════ -->
+		<Transition name="slide-up">
+			<div
+				v-if="activeSection === 'jukebox'"
+				class="section-panel panel-room panel-jukebox"
+			>
+				<p class="panel-eyebrow">Corner cabinet</p>
+				<h2 class="panel-title">Greasy Jukebox</h2>
+				<p class="room-copy">
+					The cabinet hums warm. The good tracks are scratched into the glass,
+					the bad tracks are still somehow louder.
+				</p>
+				<div class="room-actions font-bebas">
+					<span>PLAY THE GREASY MIX</span>
+					<span>CHECK QUEUE</span>
+					<span>WALK AWAY</span>
 				</div>
 			</div>
 		</Transition>
@@ -1068,96 +3223,490 @@ onMounted(() => {
 }
 
 .diner-canvas {
-	position: absolute; inset: 0;
-	width: 100%; height: 100%;
-	display: block; cursor: none;
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	display: block;
+	cursor: none;
+}
+
+/* ── FIRST LOAD FALLBACK ───────────────────────────── */
+.web-loader {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	background:
+		radial-gradient(
+			circle at 50% 42%,
+			rgba(250, 64, 64, 0.18),
+			transparent 32%
+		),
+		linear-gradient(180deg, #030101 0%, #100402 56%, #050202 100%);
+	color: #fff2c8;
+	pointer-events: auto;
+}
+
+.loader-scene {
+	position: absolute;
+	inset: 0;
+	perspective: 680px;
+	overflow: hidden;
+}
+
+.loader-back-wall {
+	position: absolute;
+	left: 50%;
+	top: 13%;
+	width: min(48rem, 74vw);
+	height: min(21rem, 42vh);
+	transform: translateX(-50%) rotateX(7deg);
+	transform-origin: 50% 100%;
+	background:
+		linear-gradient(
+			90deg,
+			transparent 0 18%,
+			rgba(0, 0, 0, 0.28) 18% 19%,
+			transparent 19% 81%,
+			rgba(0, 0, 0, 0.28) 81% 82%,
+			transparent 82%
+		),
+		repeating-linear-gradient(
+			0deg,
+			rgba(255, 242, 200, 0.045) 0 2px,
+			transparent 2px 7px
+		),
+		linear-gradient(180deg, #9e1510 0 46%, #1b0906 46% 48%, #e1ad67 48% 100%);
+	box-shadow: 0 0 5rem rgba(232, 169, 70, 0.18);
+}
+
+.loader-neon {
+	position: absolute;
+	left: 50%;
+	top: 16%;
+	width: min(22rem, 48vw);
+	padding: 0.55rem 1rem;
+	transform: translateX(-50%);
+	border: 0.28rem solid #170806;
+	background: #080302;
+	color: #fff6c8;
+	font-family: Impact, "Arial Black", sans-serif;
+	font-size: clamp(1.8rem, 5vw, 4rem);
+	line-height: 1;
+	text-align: center;
+	text-shadow:
+		0 0 0.4rem #fff2c8,
+		0 0 1.1rem #f6cf5d,
+		0 0 2rem #e8a946;
+	animation: loaderNeon 1.45s ease-in-out infinite;
+}
+
+.loader-board {
+	position: absolute;
+	bottom: 17%;
+	width: 7.8rem;
+	height: 5rem;
+	border: 0.22rem solid #1b0804;
+	background: #0b0302;
+	color: #e8a946;
+	display: grid;
+	place-items: center;
+	text-align: center;
+	box-shadow: 0 0 1.2rem rgba(0, 0, 0, 0.5);
+}
+
+.loader-board span {
+	font-family: Impact, "Arial Black", sans-serif;
+	font-size: 1.2rem;
+}
+
+.loader-board small {
+	display: block;
+	max-width: 6.5rem;
+	color: rgba(255, 242, 200, 0.56);
+	font-size: 0.58rem;
+	text-transform: uppercase;
+}
+
+.loader-board-left {
+	left: 23%;
+}
+
+.loader-board-right {
+	right: 23%;
+}
+
+.loader-lamp {
+	position: absolute;
+	top: 3%;
+	width: 3.4rem;
+	height: 2rem;
+	border-radius: 50%;
+	background:
+		radial-gradient(ellipse at 50% 70%, #fff2c8 0 22%, transparent 23%),
+		radial-gradient(
+			ellipse at 50% 45%,
+			#080403 0 56%,
+			#e8a946 57% 62%,
+			transparent 63%
+		);
+	filter: drop-shadow(0 0 1.1rem rgba(232, 169, 70, 0.6));
+}
+
+.loader-lamp::before {
+	content: "";
+	position: absolute;
+	left: 50%;
+	bottom: 72%;
+	width: 1px;
+	height: 8rem;
+	background: rgba(232, 169, 70, 0.28);
+}
+
+.loader-lamp-a {
+	left: 28%;
+}
+
+.loader-lamp-b {
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+.loader-lamp-c {
+	right: 28%;
+}
+
+.loader-counter {
+	position: absolute;
+	left: 50%;
+	top: 57%;
+	width: min(37rem, 64vw);
+	height: 4.2rem;
+	transform: translateX(-50%) rotateX(12deg);
+	background:
+		linear-gradient(180deg, #210806 0 18%, #080302 18% 100%),
+		linear-gradient(
+			90deg,
+			transparent 0 9%,
+			rgba(250, 64, 64, 0.35) 9% 10%,
+			transparent 10% 90%,
+			rgba(250, 64, 64, 0.35) 90% 91%,
+			transparent 91%
+		);
+	box-shadow:
+		0 -0.3rem 0 #e8a946,
+		0 1.8rem 3rem rgba(0, 0, 0, 0.65);
+}
+
+.loader-floor {
+	position: absolute;
+	left: -10%;
+	right: -10%;
+	bottom: -22%;
+	height: 52%;
+	transform: rotateX(64deg);
+	transform-origin: 50% 100%;
+	background:
+		linear-gradient(rgba(232, 169, 70, 0.08), rgba(0, 0, 0, 0.6)),
+		repeating-linear-gradient(90deg, #070302 0 3rem, #b47b37 3rem 6rem),
+		repeating-linear-gradient(
+			0deg,
+			transparent 0 3rem,
+			rgba(0, 0, 0, 0.7) 3rem 6rem
+		);
+	background-blend-mode: normal, difference, normal;
+	animation: loaderFloor 1.8s linear infinite;
+}
+
+.loader-copy {
+	position: relative;
+	z-index: 2;
+	margin-top: 8vh;
+	text-align: center;
+	text-transform: uppercase;
+	text-shadow: 0 0.28rem 0 rgba(0, 0, 0, 0.45);
+}
+
+.loader-kicker,
+.loader-sub {
+	margin: 0;
+	color: rgba(255, 242, 200, 0.82);
+	font-size: clamp(0.8rem, 1.7vw, 1.15rem);
+	letter-spacing: 0.3em;
+}
+
+.loader-copy h1 {
+	margin: 0.45rem 0 0.8rem;
+	color: #fff2c8;
+	font-size: clamp(4.8rem, 15vw, 12rem);
+	line-height: 0.82;
+	text-shadow:
+		0 0.25rem 0 #6d2a05,
+		0 0 1.8rem rgba(232, 169, 70, 0.45);
+}
+
+.loader-bar {
+	width: min(16rem, 52vw);
+	height: 0.42rem;
+	margin: 1.25rem auto 0;
+	border: 1px solid rgba(255, 242, 200, 0.34);
+	background: rgba(0, 0, 0, 0.35);
+	overflow: hidden;
+}
+
+.loader-bar span {
+	display: block;
+	width: 45%;
+	height: 100%;
+	background: #fa4040;
+	box-shadow: 0 0 1rem #fa4040;
+	animation: loaderBar 1.05s ease-in-out infinite;
+}
+
+.loader-enter-active,
+.loader-leave-active {
+	transition:
+		opacity 0.45s ease,
+		transform 0.45s ease;
+}
+
+.loader-enter-from,
+.loader-leave-to {
+	opacity: 0;
+	transform: scale(1.02);
 }
 
 /* ── SCANLINES + VIGNETTE ───────────────────────────── */
 .scanlines {
-	position: absolute; inset: 0; z-index: 2; pointer-events: none;
-	background: repeating-linear-gradient(to bottom, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px);
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+	background: repeating-linear-gradient(
+		to bottom,
+		transparent,
+		transparent 5px,
+		rgba(0, 0, 0, 0.025) 5px,
+		rgba(0, 0, 0, 0.025) 6px
+	);
 }
 .vignette {
-	position: absolute; inset: 0; z-index: 3; pointer-events: none;
-	background: radial-gradient(ellipse at 50% 45%, transparent 35%, rgba(0,0,0,0.72) 100%);
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	pointer-events: none;
+	background: radial-gradient(
+		ellipse at 50% 45%,
+		transparent 35%,
+		rgba(0, 0, 0, 0.72) 100%
+	);
 }
 
 /* ── CROSSHAIR ──────────────────────────────────────── */
 .crosshair {
-	position: absolute; top: 50%; left: 50%; z-index: 12; pointer-events: none;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 12;
+	pointer-events: none;
 	transform: translate(-50%, -50%);
 }
-.ch-h, .ch-v { position: absolute; background: rgba(255,242,200,0.65); }
-.ch-h { width: 14px; height: 1.5px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-.ch-v { width: 1.5px; height: 14px; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.ch-h,
+.ch-v {
+	position: absolute;
+	background: rgba(255, 242, 200, 0.65);
+}
+.ch-h {
+	width: 14px;
+	height: 1.5px;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+.ch-v {
+	width: 1.5px;
+	height: 14px;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
 
 /* ── ENTER HINT ─────────────────────────────────────── */
 .enter-hint {
-	position: absolute; inset: 0; z-index: 20;
-	display: flex; flex-direction: column; align-items: center;
-	justify-content: flex-end; padding-bottom: 12%;
-	pointer-events: none; text-align: center;
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
+	padding-bottom: 12%;
+	pointer-events: none;
+	text-align: center;
 }
 .eh-ring {
-	font-size: 3rem; color: rgba(255,242,200,0.5);
-	animation: hintPulse 2s ease-in-out infinite; line-height: 1; margin-bottom: 0.5rem;
+	font-size: 3rem;
+	color: rgba(255, 242, 200, 0.5);
+	animation: hintPulse 2s ease-in-out infinite;
+	line-height: 1;
+	margin-bottom: 0.5rem;
 }
 .eh-main {
-	font-size: clamp(0.9rem, 2.2vw, 1.3rem); letter-spacing: 0.2em;
-	color: rgba(255,242,200,0.8); text-transform: uppercase; margin-bottom: 0.3rem;
+	font-size: clamp(0.9rem, 2.2vw, 1.3rem);
+	letter-spacing: 0.2em;
+	color: rgba(255, 242, 200, 0.8);
+	text-transform: uppercase;
+	margin-bottom: 0.3rem;
 }
 .eh-sub {
-	font-size: clamp(0.6rem, 1.2vw, 0.82rem); letter-spacing: 0.18em;
-	color: rgba(232,169,70,0.5); text-transform: uppercase;
+	font-size: clamp(0.6rem, 1.2vw, 0.82rem);
+	letter-spacing: 0.18em;
+	color: rgba(232, 169, 70, 0.5);
+	text-transform: uppercase;
+}
+
+/* ── ROOM TRANSITION ───────────────────────────────── */
+.teleport-screen {
+	position: absolute;
+	inset: 0;
+	z-index: 45;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	background:
+		radial-gradient(
+			circle at 50% 50%,
+			rgba(232, 169, 70, 0.14),
+			transparent 24rem
+		),
+		#070302;
+	color: #fff2c8;
+	pointer-events: none;
+}
+.teleport-tunnel {
+	position: absolute;
+	inset: 0;
+	perspective: 720px;
+	opacity: 0.72;
+}
+.teleport-tunnel span {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	border: 2px solid rgba(232, 169, 70, 0.18);
+	transform: translate(-50%, -50%) translateZ(var(--z)) rotate(var(--r));
+	animation: tunnelWalk 0.72s linear infinite;
+}
+.teleport-title {
+	position: relative;
+	z-index: 1;
+	font-size: clamp(1.5rem, 4vw, 3.2rem);
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	text-shadow: 0 0 24px rgba(232, 169, 70, 0.45);
+}
+.teleport-sub {
+	position: absolute;
+	bottom: 26%;
+	z-index: 1;
+	font-size: 0.8rem;
+	letter-spacing: 0.2em;
+	color: rgba(232, 169, 70, 0.56);
+	text-transform: uppercase;
 }
 
 /* ── HUD BAR ────────────────────────────────────────── */
 .hud-bar {
-	position: absolute; bottom: 1.4rem; left: 50%; transform: translateX(-50%);
-	z-index: 12; display: flex; align-items: center; gap: 0.8rem;
-	background: rgba(0,0,0,0.55); border: 1px solid rgba(232,169,70,0.28);
-	color: rgba(255,242,200,0.5); font-size: 0.75rem; letter-spacing: 0.15em;
-	padding: 0.35rem 1rem 0.25rem; pointer-events: none; white-space: nowrap;
+	position: absolute;
+	bottom: 1.4rem;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 12;
+	display: flex;
+	align-items: center;
+	gap: 0.8rem;
+	background: rgba(0, 0, 0, 0.55);
+	border: 1px solid rgba(232, 169, 70, 0.28);
+	color: rgba(255, 242, 200, 0.5);
+	font-size: 0.75rem;
+	letter-spacing: 0.15em;
+	padding: 0.35rem 1rem 0.25rem;
+	pointer-events: none;
+	white-space: nowrap;
 }
-.hud-sep { color: rgba(232,169,70,0.28); }
+.hud-sep {
+	color: rgba(232, 169, 70, 0.28);
+}
 
 /* ── PROXIMITY PROMPT ───────────────────────────────── */
 .zone-prompt {
-	position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%);
-	z-index: 15; display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
-	pointer-events: none; text-align: center;
+	position: absolute;
+	bottom: 22%;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 15;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.3rem;
+	pointer-events: none;
+	text-align: center;
 }
-.zp-emoji { font-size: 2rem; line-height: 1; }
+.zp-emoji {
+	font-size: 2rem;
+	line-height: 1;
+}
 .zp-key {
-	width: 2rem; height: 2rem; border: 2px solid #e8a946; color: #e8a946;
-	font-size: 1.25rem; line-height: 1; display: grid; place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border: 2px solid #e8a946;
+	color: #e8a946;
+	font-size: 1.25rem;
+	line-height: 1;
+	display: grid;
+	place-items: center;
 	padding-top: 0.1rem;
-	box-shadow: 0 0 10px rgba(232,169,70,0.4);
+	box-shadow: 0 0 10px rgba(232, 169, 70, 0.4);
 	animation: keyPulse 1s ease-in-out infinite;
 }
 .zp-label {
-	font-size: clamp(0.75rem, 1.8vw, 1rem); letter-spacing: 0.18em;
-	color: rgba(255,242,200,0.85); text-transform: uppercase;
+	font-size: clamp(0.75rem, 1.8vw, 1rem);
+	letter-spacing: 0.18em;
+	color: rgba(255, 242, 200, 0.85);
+	text-transform: uppercase;
 }
 
 /* ── BACK BUTTON ────────────────────────────────────── */
 .back-btn {
-	position: absolute; top: 1.2rem; left: 1.4rem; z-index: 40;
-	background: rgba(37,18,14,0.88); color: #e8a946;
-	border: 2px solid #e8a946; cursor: pointer;
-	font-size: 0.95rem; letter-spacing: 0.15em;
+	position: absolute;
+	top: 1.2rem;
+	left: 1.4rem;
+	z-index: 40;
+	background: rgba(37, 18, 14, 0.88);
+	color: #e8a946;
+	border: 2px solid #e8a946;
+	cursor: pointer;
+	font-size: 0.95rem;
+	letter-spacing: 0.15em;
 	padding: 0.5rem 1.1rem 0.38rem;
 	box-shadow: 3px 3px 0 #25120e;
 	transition: background 0.12s;
 }
-.back-btn:hover { background: rgba(200,80,20,0.9); color: white; }
+.back-btn:hover {
+	background: rgba(200, 80, 20, 0.9);
+	color: white;
+}
 
 /* ══════════════════════════════════════════════════════
    SHARED PANEL BASE
 ══════════════════════════════════════════════════════ */
 .section-panel {
-	position: absolute; z-index: 30; pointer-events: all;
+	position: absolute;
+	z-index: 30;
+	pointer-events: all;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1165,225 +3714,705 @@ onMounted(() => {
 ══════════════════════════════════════════════════════ */
 .panel-menu {
 	inset: 0;
-	display: flex; flex-direction: column;
-	align-items: center; justify-content: center;
-	padding: 5rem 1rem 1rem; gap: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 5rem 1rem 1rem;
+	gap: 0;
 	pointer-events: none;
 }
 .panel-menu .panel-header,
 .panel-menu .menu-list,
 .panel-menu .menu-footer,
-.panel-menu .sponsor-strip { pointer-events: all; }
+.panel-menu .sponsor-strip {
+	pointer-events: all;
+}
 
 .panel-header {
-	display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
-	background: #25120e; border: 4px solid #e8a946; border-bottom: none;
-	padding: 0.7rem 1.1rem 0.55rem; width: 100%; max-width: 660px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.8rem;
+	background: #25120e;
+	border: 4px solid #e8a946;
+	border-bottom: none;
+	padding: 0.7rem 1.1rem 0.55rem;
+	width: 100%;
+	max-width: 660px;
 }
-.bulb-row { display: flex; gap: 5px; align-items: center; }
+.bulb-row {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+}
 .bulb {
-	display: block; width: 9px; height: 9px; border-radius: 50%;
-	background: #f6cf5d; box-shadow: 0 0 7px 2px rgba(246,207,93,0.7);
+	display: block;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: #f6cf5d;
+	box-shadow: 0 0 7px 2px rgba(246, 207, 93, 0.7);
 	animation: bulbPulse 1.8s ease-in-out infinite;
 }
-.panel-title-wrap { text-align: center; }
-.panel-eyebrow { font-size: 0.75rem; letter-spacing: 0.25em; color: #e8a946; text-transform: uppercase; margin: 0; }
-.panel-title { font-size: clamp(2rem, 4vw, 3.5rem); line-height: 0.9; color: #fff2c8; text-shadow: 3px 3px 0 rgba(232,169,70,0.4); text-transform: uppercase; margin: 0; }
-.panel-sub { font-size: 0.62rem; letter-spacing: 0.15em; color: rgba(255,242,200,0.38); text-transform: uppercase; margin: 0.1rem 0 0; }
+.panel-title-wrap {
+	text-align: center;
+}
+.panel-eyebrow {
+	font-size: 0.75rem;
+	letter-spacing: 0.25em;
+	color: #e8a946;
+	text-transform: uppercase;
+	margin: 0;
+}
+.panel-title {
+	font-size: clamp(2rem, 4vw, 3.5rem);
+	line-height: 0.9;
+	color: #fff2c8;
+	text-shadow: 3px 3px 0 rgba(232, 169, 70, 0.4);
+	text-transform: uppercase;
+	margin: 0;
+}
+.panel-sub {
+	font-size: 0.62rem;
+	letter-spacing: 0.15em;
+	color: rgba(255, 242, 200, 0.38);
+	text-transform: uppercase;
+	margin: 0.1rem 0 0;
+}
 
 .menu-list {
-	width: 100%; max-width: 660px;
-	background: linear-gradient(90deg, rgba(37,18,14,0.08) 1px, transparent 1px) 0 0 / 18px 100%, #180904;
-	border: 4px solid #e8a946; border-top: none;
+	width: 100%;
+	max-width: 660px;
+	background:
+		linear-gradient(90deg, rgba(37, 18, 14, 0.08) 1px, transparent 1px) 0 0 /
+			18px 100%,
+		#180904;
+	border: 4px solid #e8a946;
+	border-top: none;
 }
 .menu-item {
-	display: grid; grid-template-columns: 2.2rem 3rem 1fr auto 1.8rem;
-	align-items: center; gap: 0.6rem; padding: 0.65rem 1rem;
-	border-bottom: 1px solid rgba(232,169,70,0.14);
-	text-decoration: none; color: #fff2c8;
-	transition: background 0.12s, padding-left 0.12s;
-	position: relative; overflow: hidden;
+	display: grid;
+	grid-template-columns: 2.2rem 3rem 1fr auto 1.8rem;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.65rem 1rem;
+	border-bottom: 1px solid rgba(232, 169, 70, 0.14);
+	text-decoration: none;
+	color: #fff2c8;
+	transition:
+		background 0.12s,
+		padding-left 0.12s;
+	position: relative;
+	overflow: hidden;
 }
-.menu-item:last-child { border-bottom: none; }
+.menu-item:last-child {
+	border-bottom: none;
+}
 .menu-item::before {
-	content: ""; position: absolute; inset: 0;
-	background: linear-gradient(90deg, var(--accent, #fa4040) 0%, transparent 50%);
-	opacity: 0; transition: opacity 0.16s;
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		90deg,
+		var(--accent, #fa4040) 0%,
+		transparent 50%
+	);
+	opacity: 0;
+	transition: opacity 0.16s;
 }
-.menu-item:hover::before { opacity: 0.18; }
-.menu-item:hover { padding-left: 1.3rem; }
-.menu-item > * { position: relative; z-index: 1; }
-.item-num   { font-size: 1rem; color: rgba(232,169,70,0.4); line-height: 1; }
-.item-icon  { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border: 2px solid #25120e; color: white; }
-.item-name  { font-size: 1.05rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
-.item-tag   { border: 1px solid rgba(255,242,200,0.2); color: rgba(255,242,200,0.45); font-size: 0.75rem; letter-spacing: 0.1em; padding: 0.16rem 0.5rem 0.1rem; text-transform: uppercase; white-space: nowrap; }
-.item-arrow { font-size: 1.05rem; color: rgba(232,169,70,0.32); transition: color 0.12s, transform 0.12s; }
-.menu-item:hover .item-arrow { color: #e8a946; transform: translateX(3px); }
+.menu-item:hover::before {
+	opacity: 0.18;
+}
+.menu-item:hover {
+	padding-left: 1.3rem;
+}
+.menu-item > * {
+	position: relative;
+	z-index: 1;
+}
+.item-num {
+	font-size: 1rem;
+	color: rgba(232, 169, 70, 0.4);
+	line-height: 1;
+}
+.item-icon {
+	display: grid;
+	place-items: center;
+	width: 2.6rem;
+	height: 2.6rem;
+	border: 2px solid #25120e;
+	color: white;
+}
+.item-name {
+	font-size: 1.05rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+.item-tag {
+	border: 1px solid rgba(255, 242, 200, 0.2);
+	color: rgba(255, 242, 200, 0.45);
+	font-size: 0.75rem;
+	letter-spacing: 0.1em;
+	padding: 0.16rem 0.5rem 0.1rem;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+.item-arrow {
+	font-size: 1.05rem;
+	color: rgba(232, 169, 70, 0.32);
+	transition:
+		color 0.12s,
+		transform 0.12s;
+}
+.menu-item:hover .item-arrow {
+	color: #e8a946;
+	transform: translateX(3px);
+}
 
 .menu-footer {
-	width: 100%; max-width: 660px;
-	display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.4rem;
-	background: #25120e; border: 4px solid #e8a946; border-top: 2px dashed rgba(232,169,70,0.35);
-	color: rgba(255,242,200,0.4); font-size: 0.8rem; letter-spacing: 0.1em;
-	text-transform: uppercase; padding: 0.5rem 1rem 0.38rem;
+	width: 100%;
+	max-width: 660px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	background: #25120e;
+	border: 4px solid #e8a946;
+	border-top: 2px dashed rgba(232, 169, 70, 0.35);
+	color: rgba(255, 242, 200, 0.4);
+	font-size: 0.8rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	padding: 0.5rem 1rem 0.38rem;
 }
-.footer-dots { color: rgba(232,169,70,0.18); }
+.footer-dots {
+	color: rgba(232, 169, 70, 0.18);
+}
 
 .sponsor-strip {
-	position: relative; display: flex; align-items: center; gap: 0.9rem;
-	width: 100%; max-width: 660px; margin-top: 0.6rem;
-	border: 3px solid #2f7f67; background: #ffe7a3; color: #25120e;
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 0.9rem;
+	width: 100%;
+	max-width: 660px;
+	margin-top: 0.6rem;
+	border: 3px solid #2f7f67;
+	background: #ffe7a3;
+	color: #25120e;
 	padding: 0.5rem 0.75rem;
 }
-.sponsor-badge { position: absolute; top: 0.35rem; right: 0.45rem; background: #e8a946; color: #25120e; border: 2px solid #25120e; font-size: 0.68rem; letter-spacing: 0.1em; padding: 0.08rem 0.4rem; text-transform: uppercase; }
-.sponsor-img { width: 4.5rem; height: 3.5rem; object-fit: cover; border: 2px solid #25120e; flex-shrink: 0; }
-.sponsor-copy { flex: 1; }
-.sponsor-code-line { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.2rem; }
-.sc-label { font-size: 0.7rem; letter-spacing: 0.08em; opacity: 0.6; text-transform: uppercase; }
-.sc-val { background: #fa4040; color: white; border: 1.5px solid #25120e; padding: 0.08rem 0.38rem; font-size: 0.88rem; }
-.sponsor-desc { font-weight: 700; font-size: 0.75rem; line-height: 1.35; }
-.sponsor-cta { display: inline-block; background: #25120e; color: #fff2c8; font-size: 0.9rem; letter-spacing: 0.1em; padding: 0.28rem 0.75rem 0.2rem; text-decoration: none; margin-top: 0.25rem; }
-.sponsor-cta:hover { background: #c92828; }
+.sponsor-badge {
+	position: absolute;
+	top: 0.35rem;
+	right: 0.45rem;
+	background: #e8a946;
+	color: #25120e;
+	border: 2px solid #25120e;
+	font-size: 0.68rem;
+	letter-spacing: 0.1em;
+	padding: 0.08rem 0.4rem;
+	text-transform: uppercase;
+}
+.sponsor-img {
+	width: 4.5rem;
+	height: 3.5rem;
+	object-fit: cover;
+	border: 2px solid #25120e;
+	flex-shrink: 0;
+}
+.sponsor-copy {
+	flex: 1;
+}
+.sponsor-code-line {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-bottom: 0.2rem;
+}
+.sc-label {
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	opacity: 0.6;
+	text-transform: uppercase;
+}
+.sc-val {
+	background: #fa4040;
+	color: white;
+	border: 1.5px solid #25120e;
+	padding: 0.08rem 0.38rem;
+	font-size: 0.88rem;
+}
+.sponsor-desc {
+	font-weight: 700;
+	font-size: 0.75rem;
+	line-height: 1.35;
+}
+.sponsor-cta {
+	display: inline-block;
+	background: #25120e;
+	color: #fff2c8;
+	font-size: 0.9rem;
+	letter-spacing: 0.1em;
+	padding: 0.28rem 0.75rem 0.2rem;
+	text-decoration: none;
+	margin-top: 0.25rem;
+}
+.sponsor-cta:hover {
+	background: #c92828;
+}
 
 /* ══════════════════════════════════════════════════════
    ABOUT PANEL
 ══════════════════════════════════════════════════════ */
 .panel-about {
-	top: 50%; left: 50%; transform: translate(-50%, -50%);
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
 	width: min(400px, 92vw);
-	display: flex; flex-direction: column; align-items: center;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }
 .about-frame {
-	position: relative; border: 5px solid #25120e; background: #c92828;
-	box-shadow: -10px 10px 0 #e8a946, -18px 18px 0 #16100d;
-	overflow: hidden; width: 100%;
+	position: relative;
+	border: 5px solid #25120e;
+	background: #c92828;
+	box-shadow:
+		-10px 10px 0 #e8a946,
+		-18px 18px 0 #16100d;
+	overflow: hidden;
+	width: 100%;
 	border-radius: 10px 2px 8px 2px;
 }
-.about-portrait { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; filter: saturate(1.1) contrast(1.04); }
-.about-gloss    { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(135deg, rgba(255,242,200,0.18) 0 18%, transparent 20%), linear-gradient(180deg, transparent 58%, rgba(37,18,14,0.55)); }
-.about-sticker  { position: absolute; z-index: 3; border: 3px solid #25120e; font-size: 1.1rem; line-height: 1.1; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.4rem 0.6rem 0.25rem; box-shadow: 4px 4px 0 #25120e; text-align: center; }
-.sticker-a { top: 0.8rem; left: 0.8rem; background: #ffe7a3; color: #25120e; transform: rotate(-7deg); animation: stickerWiggle 6s ease-in-out infinite; }
-.sticker-b { bottom: 3.5rem; right: 0.8rem; background: #2f7f67; color: white; transform: rotate(5deg); animation: stickerWiggle 7s ease-in-out infinite reverse; }
-.about-nameplate { display: flex; align-items: center; gap: 0.6rem; justify-content: center; background: #25120e; color: #fff2c8; font-size: 1.05rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.55rem 1rem 0.42rem; border-top: 4px solid #e8a946; width: 100%; }
-.np-dot { color: #e8a946; font-size: 1.5rem; line-height: 0; transform: translateY(2px); }
-.about-stats { display: flex; background: #180904; border: 3px solid #e8a946; border-top: none; width: 100%; }
-.bio-stat { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0.65rem 0.5rem 0.5rem; border-right: 2px solid rgba(232,169,70,0.2); }
-.bio-stat:last-child { border-right: none; }
-.stat-val { font-size: 1.4rem; color: #e8a946; line-height: 1; }
-.stat-label { font-size: 0.62rem; letter-spacing: 0.12em; color: rgba(255,242,200,0.4); text-transform: uppercase; }
-.about-tagline { font-size: 0.75rem; letter-spacing: 0.15em; color: rgba(232,169,70,0.45); text-transform: uppercase; margin-top: 0.65rem; text-align: center; }
+.about-portrait {
+	width: 100%;
+	aspect-ratio: 3/4;
+	object-fit: cover;
+	display: block;
+	filter: saturate(1.1) contrast(1.04);
+}
+.about-gloss {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background:
+		linear-gradient(135deg, rgba(255, 242, 200, 0.18) 0 18%, transparent 20%),
+		linear-gradient(180deg, transparent 58%, rgba(37, 18, 14, 0.55));
+}
+.about-sticker {
+	position: absolute;
+	z-index: 3;
+	border: 3px solid #25120e;
+	font-size: 1.1rem;
+	line-height: 1.1;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	padding: 0.4rem 0.6rem 0.25rem;
+	box-shadow: 4px 4px 0 #25120e;
+	text-align: center;
+}
+.sticker-a {
+	top: 0.8rem;
+	left: 0.8rem;
+	background: #ffe7a3;
+	color: #25120e;
+	transform: rotate(-7deg);
+	animation: stickerWiggle 6s ease-in-out infinite;
+}
+.sticker-b {
+	bottom: 3.5rem;
+	right: 0.8rem;
+	background: #2f7f67;
+	color: white;
+	transform: rotate(5deg);
+	animation: stickerWiggle 7s ease-in-out infinite reverse;
+}
+.about-nameplate {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	justify-content: center;
+	background: #25120e;
+	color: #fff2c8;
+	font-size: 1.05rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	padding: 0.55rem 1rem 0.42rem;
+	border-top: 4px solid #e8a946;
+	width: 100%;
+}
+.np-dot {
+	color: #e8a946;
+	font-size: 1.5rem;
+	line-height: 0;
+	transform: translateY(2px);
+}
+.about-stats {
+	display: flex;
+	background: #180904;
+	border: 3px solid #e8a946;
+	border-top: none;
+	width: 100%;
+}
+.bio-stat {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 0.65rem 0.5rem 0.5rem;
+	border-right: 2px solid rgba(232, 169, 70, 0.2);
+}
+.bio-stat:last-child {
+	border-right: none;
+}
+.stat-val {
+	font-size: 1.4rem;
+	color: #e8a946;
+	line-height: 1;
+}
+.stat-label {
+	font-size: 0.62rem;
+	letter-spacing: 0.12em;
+	color: rgba(255, 242, 200, 0.4);
+	text-transform: uppercase;
+}
+.about-tagline {
+	font-size: 0.75rem;
+	letter-spacing: 0.15em;
+	color: rgba(232, 169, 70, 0.45);
+	text-transform: uppercase;
+	margin-top: 0.65rem;
+	text-align: center;
+}
 
 /* ══════════════════════════════════════════════════════
    LEADERBOARD PANEL
 ══════════════════════════════════════════════════════ */
 .panel-leaderboard {
 	inset: 0;
-	display: flex; align-items: center; justify-content: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	padding: 5rem 2rem 2rem;
 }
 .lb-wrap {
-	display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
-	width: 100%; max-width: 1100px;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 2rem;
+	width: 100%;
+	max-width: 1100px;
 }
-.lb-wrap > * { border: 4px solid #e8a946; background: rgba(12,6,3,0.88); box-shadow: -8px 8px 0 #25120e; }
+.lb-wrap > * {
+	border: 4px solid #e8a946;
+	background: rgba(12, 6, 3, 0.88);
+	box-shadow: -8px 8px 0 #25120e;
+}
 
-/* ── TV OVERLAYS – live iframes projected into 3D ── */
-.tv-overlay {
-	position: absolute;
-	z-index: 20;
-	pointer-events: none;
-	transform: translate(-50%, -50%);
-	opacity: 0;
-	transition: opacity 0.4s ease;
+/* ══════════════════════════════════════════════════════
+   MAC TALK PANEL
+══════════════════════════════════════════════════════ */
+.panel-mac {
+	left: 50%;
+	bottom: 4.5rem;
+	transform: translateX(-50%);
+	width: min(760px, calc(100vw - 2rem));
+}
+.mac-dialogue {
+	display: grid;
+	grid-template-columns: 9rem 1fr;
+	align-items: end;
+	gap: 1rem;
+	background:
+		linear-gradient(90deg, rgba(232, 169, 70, 0.12) 1px, transparent 1px) 0 0 /
+			18px 100%,
+		rgba(18, 8, 5, 0.94);
+	border: 4px solid #e8a946;
+	box-shadow:
+		-7px 7px 0 #25120e,
+		0 0 32px rgba(232, 169, 70, 0.16);
+	padding: 0.9rem;
+}
+.mac-dialogue-img {
+	width: 100%;
+	height: 10rem;
+	object-fit: contain;
+	object-position: bottom center;
+	filter: drop-shadow(0 0 12px rgba(250, 64, 64, 0.22));
+}
+.mac-dialogue-copy {
+	min-width: 0;
+}
+.mac-line {
+	color: rgba(255, 242, 200, 0.82);
+	font-weight: 800;
+	line-height: 1.4;
+	margin: 0.45rem 0 0.8rem;
+}
+.mac-options {
 	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.4rem;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+}
+.mac-options span {
+	border: 2px solid rgba(232, 169, 70, 0.5);
+	color: #e8a946;
+	background: rgba(37, 18, 14, 0.86);
+	padding: 0.28rem 0.55rem 0.18rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
 }
 
-.tv-overlay.visible {
-	opacity: 1;
-	pointer-events: all;
+/* ══════════════════════════════════════════════════════
+   ROOM / JUKEBOX PANELS
+══════════════════════════════════════════════════════ */
+.panel-room {
+	left: 50%;
+	bottom: 4.5rem;
+	transform: translateX(-50%);
+	width: min(620px, calc(100vw - 2rem));
+	background:
+		linear-gradient(90deg, rgba(232, 169, 70, 0.12) 1px, transparent 1px) 0 0 /
+			18px 100%,
+		rgba(18, 8, 5, 0.94);
+	border: 4px solid #e8a946;
+	box-shadow:
+		-7px 7px 0 #25120e,
+		0 0 32px rgba(232, 169, 70, 0.16);
+	padding: 1rem 1.1rem 1.05rem;
+}
+.panel-jukebox {
+	border-color: #ff6600;
+	box-shadow:
+		-7px 7px 0 #25120e,
+		0 0 34px rgba(255, 102, 0, 0.2);
+}
+.panel-fish-room {
+	border-color: #2f7f67;
+	box-shadow:
+		-7px 7px 0 #25120e,
+		0 0 34px rgba(47, 127, 103, 0.22);
+}
+.panel-live-room {
+	border-color: #4aa3ff;
+	box-shadow:
+		-7px 7px 0 #25120e,
+		0 0 34px rgba(74, 163, 255, 0.22);
+}
+.room-copy {
+	color: rgba(255, 242, 200, 0.82);
+	font-weight: 800;
+	line-height: 1.45;
+	margin: 0.55rem 0 0.9rem;
+	max-width: 54ch;
+}
+.room-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+}
+.room-actions span {
+	border: 2px solid rgba(232, 169, 70, 0.5);
+	color: #e8a946;
+	background: rgba(37, 18, 14, 0.86);
+	padding: 0.28rem 0.55rem 0.18rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
 }
 
-.tv-label {
-	background: rgba(0,0,0,0.75);
-	border: 1px solid rgba(68,136,255,0.5);
-	color: #4488ff;
-	font-size: 0.7rem;
-	letter-spacing: 0.18em;
-	padding: 0.18rem 0.6rem 0.1rem;
-	text-transform: uppercase;
+.fade-enter-active,
+.fade-leave-active {
+	transition: opacity 0.5s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
 }
 
-.tv-iframe {
-	width: 320px;
-	height: 180px;
-	border: 3px solid #25120e;
-	box-shadow: 0 0 24px rgba(0,80,200,0.55), -5px 5px 0 #25120e;
-	background: #000;
-	display: block;
+.prompt-enter-active,
+.prompt-leave-active {
+	transition:
+		opacity 0.3s ease,
+		transform 0.3s ease;
+}
+.prompt-enter-from,
+.prompt-leave-to {
+	opacity: 0;
+	transform: translateX(-50%) translateY(8px);
 }
 
-.tv-leaderboard-preview {
-	width: 320px;
-	max-height: 380px;
-	overflow: hidden;
-	border: 3px solid #e8a946;
-	box-shadow: 0 0 24px rgba(232,169,70,0.4), -5px 5px 0 #25120e;
-	background: rgba(12,6,3,0.95);
+.slide-up-enter-active,
+.slide-up-leave-active {
+	transition:
+		opacity 0.5s ease,
+		transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.fade-enter-active, .fade-leave-active         { transition: opacity 0.5s ease; }
-.fade-enter-from,   .fade-leave-to             { opacity: 0; }
+.slide-up-enter-from,
+.slide-up-leave-to {
+	opacity: 0;
+	transform: translateY(55px);
+}
 
-.prompt-enter-active, .prompt-leave-active     { transition: opacity 0.3s ease, transform 0.3s ease; }
-.prompt-enter-from,   .prompt-leave-to         { opacity: 0; transform: translateX(-50%) translateY(8px); }
+.slide-left-enter-active,
+.slide-left-leave-active {
+	transition:
+		opacity 0.5s ease,
+		transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.slide-left-enter-from,
+.slide-left-leave-to {
+	opacity: 0;
+	transform: translateX(-55px);
+}
 
-.slide-up-enter-active, .slide-up-leave-active { transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1); }
-.slide-up-enter-from,   .slide-up-leave-to     { opacity: 0; transform: translateY(55px); }
-
-.slide-left-enter-active, .slide-left-leave-active { transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1); }
-.slide-left-enter-from,   .slide-left-leave-to     { opacity: 0; transform: translateX(-55px); }
-
-.slide-right-enter-active, .slide-right-leave-active { transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1); }
-.slide-right-enter-from,   .slide-right-leave-to     { opacity: 0; transform: translateX(55px); }
+.slide-right-enter-active,
+.slide-right-leave-active {
+	transition:
+		opacity 0.5s ease,
+		transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+	opacity: 0;
+	transform: translateX(55px);
+}
 
 /* ══════════════════════════════════════════════════════
    KEYFRAMES
 ══════════════════════════════════════════════════════ */
 @keyframes hintPulse {
-	0%, 100% { opacity: 0.5; transform: scale(1); }
-	50%       { opacity: 0.9; transform: scale(1.1); }
+	0%,
+	100% {
+		opacity: 0.5;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.9;
+		transform: scale(1.1);
+	}
+}
+
+@keyframes loaderNeon {
+	0%,
+	100% {
+		filter: brightness(1);
+	}
+	48% {
+		filter: brightness(1.18);
+	}
+	51% {
+		filter: brightness(0.78);
+	}
+	54% {
+		filter: brightness(1.25);
+	}
+}
+
+@keyframes loaderFloor {
+	from {
+		background-position:
+			0 0,
+			0 0,
+			0 0;
+	}
+	to {
+		background-position:
+			0 0,
+			0 0,
+			0 6rem;
+	}
+}
+
+@keyframes loaderBar {
+	0% {
+		transform: translateX(-105%);
+	}
+	100% {
+		transform: translateX(225%);
+	}
+}
+
+@keyframes tunnelWalk {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, -50%) translateZ(-420px) scale(0.55) rotate(0deg);
+	}
+	24% {
+		opacity: 0.82;
+	}
+	100% {
+		opacity: 0;
+		transform: translate(-50%, -50%) translateZ(120px) scale(1.45) rotate(4deg);
+	}
 }
 
 @keyframes keyPulse {
-	0%, 100% { box-shadow: 0 0 10px rgba(232,169,70,0.4); }
-	50%       { box-shadow: 0 0 22px rgba(232,169,70,0.85); }
+	0%,
+	100% {
+		box-shadow: 0 0 10px rgba(232, 169, 70, 0.4);
+	}
+	50% {
+		box-shadow: 0 0 22px rgba(232, 169, 70, 0.85);
+	}
 }
 
 @keyframes bulbPulse {
-	0%, 100% { opacity: 1;   box-shadow: 0 0 7px 2px rgba(246,207,93,0.7); }
-	50%       { opacity: 0.3; box-shadow: 0 0 2px 1px rgba(246,207,93,0.2); }
+	0%,
+	100% {
+		opacity: 1;
+		box-shadow: 0 0 7px 2px rgba(246, 207, 93, 0.7);
+	}
+	50% {
+		opacity: 0.3;
+		box-shadow: 0 0 2px 1px rgba(246, 207, 93, 0.2);
+	}
 }
 
 @keyframes stickerWiggle {
-	0%, 100% { scale: 1; }
-	50%       { scale: 1.06; }
+	0%,
+	100% {
+		scale: 1;
+	}
+	50% {
+		scale: 1.06;
+	}
 }
 
 /* ══════════════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════════════ */
 @media (max-width: 700px) {
-	.lb-wrap    { grid-template-columns: 1fr; }
-	.bulb-row   { display: none; }
-	.menu-item  { grid-template-columns: 2rem 2.8rem 1fr auto; }
-	.item-arrow { display: none; }
-	.panel-about { width: 92vw; }
-	.hud-bar { font-size: 0.62rem; gap: 0.5rem; }
+	.lb-wrap {
+		grid-template-columns: 1fr;
+	}
+	.bulb-row {
+		display: none;
+	}
+	.menu-item {
+		grid-template-columns: 2rem 2.8rem 1fr auto;
+	}
+	.item-arrow {
+		display: none;
+	}
+	.panel-about {
+		width: 92vw;
+	}
+	.hud-bar {
+		font-size: 0.62rem;
+		gap: 0.5rem;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.bulb, .sticker-a, .sticker-b, .eh-ring, .zp-key { animation: none; }
+	.bulb,
+	.sticker-a,
+	.sticker-b,
+	.eh-ring,
+	.zp-key {
+		animation: none;
+	}
 }
 </style>
