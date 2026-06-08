@@ -32,6 +32,7 @@ const navs: { name: string; path: string }[] = [
 		</Notivue>
 		<nav
 			class="absolute w-full mx-auto flex items-center justify-between font-bebas p-4 text-lg"
+			style="z-index: 50;"
 		>
 			<NuxtImg :src="$ContentImage('/gg.png')" class="size-11"></NuxtImg>
 			<div class="flex gap-x-3">

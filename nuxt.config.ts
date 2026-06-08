@@ -4,10 +4,11 @@ import { fileURLToPath } from "node:url";
 export default defineNuxtConfig({
 	devtools: { enabled: true },
 	fonts: {},
-	// googleFonts: {
-	// 	families: { "IBM Plex Sans": true, "Bebas Neue": true, Poppins: true },
-	// 	preload: true,
-	// },
+	googleFonts: {
+		families: { "Bebas Neue": true, Poppins: [400, 700, 800, 900] },
+		preload: true,
+		display: "swap",
+	},
 	routeRules: {
 		"/scopes": { robots: "noindex" },
 		"/login": { robots: "noindex" },
