@@ -1,4 +1,33 @@
 export const GREASY_ASSETS = {
+	audio: {
+		macFreezer: "/greasy-assets/audio/mac-freezer.mp3",
+		macFreezerWarning: "/greasy-assets/audio/mac-freezer-warning.mp3",
+		macFreezerWhisper: "/greasy-assets/audio/mac-freezer-whisper.mp3",
+		macGreetingDoorbell: "/greasy-assets/audio/mac-greeting-doorbell.mp3",
+		macJukebox: "/greasy-assets/audio/mac-jukebox.mp3",
+		macJukeboxHype: "/greasy-assets/audio/mac-jukebox-hype.mp3",
+		macJukeboxWarning: "/greasy-assets/audio/mac-jukebox-warning.mp3",
+		macSauceSacred: "/greasy-assets/audio/mac-sauce-sacred.mp3",
+		macSauceWarning: "/greasy-assets/audio/mac-sauce-warning.mp3",
+		macSpecialChaos: "/greasy-assets/audio/mac-special-chaos.mp3",
+		macSpecial: "/greasy-assets/audio/mac-special.mp3",
+		macSingAnimeOpening: "/greasy-assets/audio/mac-sing-anime-opening.mp3",
+		macSingBalladSauce: "/greasy-assets/audio/mac-sing-ballad-sauce.mp3",
+		macSingClubRemix: "/greasy-assets/audio/mac-sing-club-remix.mp3",
+		macSingEurodanceGrease:
+			"/greasy-assets/audio/mac-sing-eurodance-grease.mp3",
+		macSingSeaShanty: "/greasy-assets/audio/mac-sing-sea-shanty.mp3",
+		macSingSynthPromise: "/greasy-assets/audio/mac-sing-synth-promise.mp3",
+		macSongFullDinerAnthem:
+			"/greasy-assets/audio/mac-song-full-diner-anthem.mp3",
+		macSongFullFishFreezer:
+			"/greasy-assets/audio/mac-song-full-fish-freezer.mp3",
+		macSongFullJukeboxMeltdown:
+			"/greasy-assets/audio/mac-song-full-jukebox-meltdown.mp3",
+		macSongFullSauceBallad:
+			"/greasy-assets/audio/mac-song-full-sauce-ballad.mp3",
+		macWelcome: "/greasy-assets/audio/mac-welcome.mp3",
+	},
 	food: {
 		bottle: "/greasy-assets/models/food/quaternius-bottle.glb",
 		cheeseburger: "/greasy-assets/models/food/quaternius-cheeseburger.glb",

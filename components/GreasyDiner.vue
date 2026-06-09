@@ -28,6 +28,8 @@ const isLocked = ref(false);
 const showEnterHint = ref(true);
 const isTeleporting = ref(false);
 const isSceneReady = ref(false);
+const loadingProgress = ref(4);
+const loadingStatus = ref("warming the grill");
 const teleportLabel = ref("Walking the hall");
 const currentRoom = ref<RoomKey>("main");
 
@@ -35,12 +37,214 @@ const currentRoom = ref<RoomKey>("main");
 const nearZone = ref<ZoneKey>("none");
 const focusedLink = ref<string | null>(null);
 const focusedLinkLabel = ref<string | null>(null);
+const isAudioReady = ref(false);
+const isJukeboxPlaying = ref(false);
+const currentJukeboxTrack = ref(0);
+const macLineIndex = ref(0);
+const isMacSpeaking = ref(false);
+const currentMacLineText = ref(
+	"Welcome to the diner. Everything is served live, nothing is refunded, and the grease is structural."
+);
+const showAudioSettings = ref(false);
+const musicVolume = ref(0.28);
+const ambienceVolume = ref(0.18);
+const dialogueVolume = ref(0.72);
+const AUDIO_SETTINGS_KEY = "greasy-diner-audio-settings";
+
+if (import.meta.client) {
+	try {
+		const saved = JSON.parse(
+			localStorage.getItem(AUDIO_SETTINGS_KEY) ?? "{}"
+		) as Partial<{
+			musicVolume: number;
+			ambienceVolume: number;
+			dialogueVolume: number;
+		}>;
+		if (typeof saved.musicVolume === "number")
+			musicVolume.value = THREE.MathUtils.clamp(saved.musicVolume, 0, 1);
+		if (typeof saved.ambienceVolume === "number")
+			ambienceVolume.value = THREE.MathUtils.clamp(saved.ambienceVolume, 0, 1);
+		if (typeof saved.dialogueVolume === "number")
+			dialogueVolume.value = THREE.MathUtils.clamp(saved.dialogueVolume, 0, 1);
+	} catch {
+		// Ignore corrupt local storage and keep the tuned defaults.
+	}
+}
+
+const macLines = [
+	{
+		text: "Welcome to the GreasyGang diner. Order loud, tip weird, and do not ask what is in the sauce.",
+		src: GREASY_ASSETS.audio.macWelcome,
+		category: "greeting",
+	},
+	{
+		text: "Oh hey! Welcome back to GreasyGang diner. I saved you the booth with the least mysterious stains.",
+		src: GREASY_ASSETS.audio.macGreetingDoorbell,
+		category: "greeting",
+	},
+	{
+		text: "Today's special is extra grease, one suspicious fish, and a side of chat yelling at the menu board.",
+		src: GREASY_ASSETS.audio.macSpecial,
+		category: "specials",
+	},
+	{
+		text: "Today only! Extra sauce, loud fries, and one burger that legally counts as a side quest.",
+		src: GREASY_ASSETS.audio.macSpecialChaos,
+		category: "specials",
+	},
+	{
+		text: "You want extra sauce? Brave. Very brave. Nobody asks what batch it came from.",
+		src: GREASY_ASSETS.audio.macSauceWarning,
+		category: "sauce",
+	},
+	{
+		text: "Extra sauce has been requested. The kitchen lights flicker. The fish approves.",
+		src: GREASY_ASSETS.audio.macSauceSacred,
+		category: "sauce",
+	},
+	{
+		text: "The jukebox is warmed up. If it starts buzzing, that means it likes you. Probably.",
+		src: GREASY_ASSETS.audio.macJukebox,
+		category: "jukebox",
+	},
+	{
+		text: "The jukebox takes coins, confidence, and sometimes emotional damage. Pick something greasy.",
+		src: GREASY_ASSETS.audio.macJukeboxWarning,
+		category: "jukebox",
+	},
+	{
+		text: "Crank it up! If the floor starts moving, that is either bass or structural failure.",
+		src: GREASY_ASSETS.audio.macJukeboxHype,
+		category: "jukebox",
+	},
+	{
+		text: "Careful in the fish freezer. The fish knows lore that no person should have to remember.",
+		src: GREASY_ASSETS.audio.macFreezer,
+		category: "freezer",
+	},
+	{
+		text: "The freezer is humming again. If the fish starts singing back, do not harmonize.",
+		src: GREASY_ASSETS.audio.macFreezerWhisper,
+		category: "freezer",
+	},
+	{
+		text: "Careful in there. The fish has sunglasses, lore, and absolutely no chill.",
+		src: GREASY_ASSETS.audio.macFreezerWarning,
+		category: "freezer",
+	},
+	{
+		text: "I will never give your fries away. Never let the sauce tray down. Greasy forever, baby.",
+		src: GREASY_ASSETS.audio.macSingSynthPromise,
+		category: "song",
+		title: "Synth Promise",
+	},
+	{
+		text: "Grease! Grease! Grease in the night! Booth lights flashing and the fish feels right!",
+		src: GREASY_ASSETS.audio.macSingEurodanceGrease,
+		category: "song",
+		title: "Eurodance Grease",
+	},
+	{
+		text: "There once was a diner that served extra sauce. The chat yelled order, and Mac was the boss.",
+		src: GREASY_ASSETS.audio.macSingSeaShanty,
+		category: "song",
+		title: "Diner Shanty",
+	},
+	{
+		text: "Take my hand by the neon sign. We are two lost fries in a sauce-soaked timeline.",
+		src: GREASY_ASSETS.audio.macSingBalladSauce,
+		category: "song",
+		title: "Sauce Timeline",
+	},
+	{
+		text: "Running through the kitchen with a burger in my soul! GreasyGang forever, we are losing control!",
+		src: GREASY_ASSETS.audio.macSingAnimeOpening,
+		category: "song",
+		title: "Kitchen Opening",
+	},
+	{
+		text: "Tip jar jumping. Jukebox bumping. GreasyMac is singing and the counter keeps thumping.",
+		src: GREASY_ASSETS.audio.macSingClubRemix,
+		category: "song",
+		title: "Counter Remix",
+	},
+	{
+		text: "Welcome to the diner where the lights stay red and the sauce has a memory.",
+		src: GREASY_ASSETS.audio.macSongFullDinerAnthem,
+		category: "fullSong",
+		title: "Full Diner Anthem",
+	},
+	{
+		text: "The fish freezer hums, the sunglasses gleam, and the lore gets colder by the verse.",
+		src: GREASY_ASSETS.audio.macSongFullFishFreezer,
+		category: "fullSong",
+		title: "Full Fish Freezer",
+	},
+	{
+		text: "The jukebox is melting down in public and GreasyMac refuses to stop singing.",
+		src: GREASY_ASSETS.audio.macSongFullJukeboxMeltdown,
+		category: "fullSong",
+		title: "Full Jukebox Meltdown",
+	},
+	{
+		text: "A dramatic sauce ballad for anyone brave enough to order extra.",
+		src: GREASY_ASSETS.audio.macSongFullSauceBallad,
+		category: "fullSong",
+		title: "Full Sauce Ballad",
+	},
+];
+type MacLine = (typeof macLines)[number];
+type MacLineCategory = MacLine["category"];
+let lastMacLineIndex = -1;
+const jukeboxTracks = [
+	{
+		name: "Greasy Mix",
+		tempo: 165,
+		lead: [392, 466, 523, 466, 392, 349, 392, 311],
+		bass: [98, 98, 117, 98, 87, 98, 117, 131],
+	},
+	{
+		name: "Freezer Shuffle",
+		tempo: 126,
+		lead: [330, 392, 440, 392, 349, 294, 330, 262],
+		bass: [82, 98, 82, 110, 73, 82, 98, 73],
+	},
+	{
+		name: "Counter Static",
+		tempo: 144,
+		lead: [523, 587, 466, 523, 392, 466, 349, 392],
+		bass: [131, 98, 131, 147, 98, 87, 98, 117],
+	},
+];
+
+let audioContext: AudioContext | null = null;
+let masterGain: GainNode | null = null;
+let musicGain: GainNode | null = null;
+let restaurantGain: GainNode | null = null;
+let freezerGain: GainNode | null = null;
+let macAudio: HTMLAudioElement | null = null;
+let jukeboxGain: GainNode | null = null;
+let jukeboxAmbientAudio: HTMLAudioElement | null = null;
+let jukeboxAmbientSource: MediaElementAudioSourceNode | null = null;
+let jukeboxAmbientGain: GainNode | null = null;
+let jukeboxAmbientPan: StereoPannerNode | null = null;
+let jukeboxLead: OscillatorNode | null = null;
+let jukeboxBass: OscillatorNode | null = null;
+let jukeboxPulse: number | undefined;
+let jukeboxStopTimeout: number | undefined;
+let jukeboxStep = 0;
+let ambientClatterPulse: number | undefined;
+let ambientSongGapTimeout: number | undefined;
+let ambientJukeboxMuted = false;
+let ambientJukeboxPauseTimeout: number | undefined;
+let currentAmbientSongIndex = 0;
 
 // ── THREEJS REFS ─────────────────────────────────────
 let renderer: THREE.WebGLRenderer | null = null;
 let camera: THREE.PerspectiveCamera;
 let scene: THREE.Scene;
 let animId = 0;
+let loadingProgressTimer: number | undefined;
 
 // walking state
 const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -50,10 +254,482 @@ const keys: Record<string, boolean> = {};
 let ensureRoomLoaded: ((room: RoomKey) => void) | null = null;
 let syncRoomVisibility: ((room: RoomKey) => void) | null = null;
 
+function setLoading(status: string, progress: number) {
+	loadingStatus.value = status;
+	loadingProgress.value = Math.max(
+		loadingProgress.value,
+		Math.min(99, Math.round(progress))
+	);
+}
+
+function finishLoadingProgress(onDone: () => void) {
+	if (loadingProgressTimer) window.clearInterval(loadingProgressTimer);
+	const finalSteps = [
+		{ status: "plating the props", progress: 76 },
+		{ status: "checking the fryer", progress: 84 },
+		{ status: "opening the doors", progress: 93 },
+		{ status: "served hot", progress: 100 },
+	];
+	let step = 0;
+	loadingProgress.value = Math.max(loadingProgress.value, 68);
+	loadingProgressTimer = window.setInterval(() => {
+		const next = finalSteps[step++];
+		if (!next) {
+			if (loadingProgressTimer) window.clearInterval(loadingProgressTimer);
+			loadingProgressTimer = undefined;
+			onDone();
+			return;
+		}
+		loadingStatus.value = next.status;
+		loadingProgress.value = next.progress;
+	}, 260);
+}
+
+function waitForLoaderStep(ms: number) {
+	return new Promise<void>(resolve => window.setTimeout(resolve, ms));
+}
+
+function waitForPaint() {
+	return new Promise<void>(resolve =>
+		requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+	);
+}
+
+async function warmupLoaderThenBuild(el: HTMLCanvasElement) {
+	const steps = [
+		{ status: "checking the fryer", progress: 28 },
+		{ status: "unstacking the booths", progress: 39 },
+		{ status: "hanging the signs", progress: 51 },
+		{ status: "rolling out the checkerboard", progress: 63 },
+		{ status: "building diner geometry", progress: 72 },
+	];
+
+	for (const step of steps) {
+		await waitForLoaderStep(230);
+		setLoading(step.status, step.progress);
+	}
+
+	await waitForPaint();
+	buildScene(el);
+}
+
+function makeNoiseBuffer(ctx: AudioContext, seconds = 1.5) {
+	const buffer = ctx.createBuffer(
+		1,
+		Math.floor(ctx.sampleRate * seconds),
+		ctx.sampleRate
+	);
+	const data = buffer.getChannelData(0);
+	for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+	return buffer;
+}
+
+const ambientSongSources = macLines
+	.filter(line => line.category === "fullSong")
+	.map(line => line.src);
+const JUKEBOX_POSITION = new THREE.Vector3(-11.5, 1.6, -9.7);
+const tmpAudioVec = new THREE.Vector3();
+const tmpAudioQuat = new THREE.Quaternion();
+
+function triggerAmbientClatter() {
+	if (!audioContext || !restaurantGain) return;
+	const now = audioContext.currentTime;
+	const count = 1 + Math.floor(Math.random() * 2);
+	for (let i = 0; i < count; i++) {
+		const osc = audioContext.createOscillator();
+		const gain = audioContext.createGain();
+		const filter = audioContext.createBiquadFilter();
+		osc.type = "triangle";
+		osc.frequency.value = 360 + Math.random() * 720;
+		filter.type = "bandpass";
+		filter.frequency.value = 560 + Math.random() * 620;
+		filter.Q.value = 2.2;
+		gain.gain.setValueAtTime(0.0001, now + i * 0.045);
+		gain.gain.exponentialRampToValueAtTime(
+			0.004 + Math.random() * 0.01,
+			now + i * 0.045 + 0.018
+		);
+		gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.045 + 0.16);
+		osc.connect(filter);
+		filter.connect(gain);
+		gain.connect(restaurantGain);
+		osc.start(now + i * 0.045);
+		osc.stop(now + i * 0.045 + 0.18);
+	}
+}
+
+function startRestaurantAmbience() {
+	if (!audioContext || !restaurantGain || ambientClatterPulse) return;
+
+	const roomHum = audioContext.createOscillator();
+	roomHum.type = "sine";
+	roomHum.frequency.value = 92;
+	const roomHumGain = audioContext.createGain();
+	roomHumGain.gain.value = 0.018;
+	roomHum.connect(roomHumGain);
+	roomHumGain.connect(restaurantGain);
+	roomHum.start();
+
+	const distantFan = audioContext.createOscillator();
+	distantFan.type = "triangle";
+	distantFan.frequency.value = 138;
+	const fanFilter = audioContext.createBiquadFilter();
+	fanFilter.type = "lowpass";
+	fanFilter.frequency.value = 240;
+	const fanGain = audioContext.createGain();
+	fanGain.gain.value = 0.008;
+	distantFan.connect(fanFilter);
+	fanFilter.connect(fanGain);
+	fanGain.connect(restaurantGain);
+	distantFan.start();
+
+	ambientClatterPulse = window.setInterval(
+		triggerAmbientClatter,
+		3600 + Math.random() * 2200
+	);
+}
+
+function startAmbientJukebox() {
+	if (!audioContext || !musicGain) return;
+	if (jukeboxAmbientAudio) {
+		if (!ambientJukeboxMuted) void jukeboxAmbientAudio.play().catch(() => {});
+		return;
+	}
+	const src =
+		ambientSongSources[currentAmbientSongIndex % ambientSongSources.length];
+	if (!src) return;
+
+	jukeboxAmbientAudio = new Audio(src);
+	jukeboxAmbientAudio.crossOrigin = "anonymous";
+	jukeboxAmbientAudio.preload = "auto";
+	jukeboxAmbientAudio.volume = 1;
+	jukeboxAmbientAudio.addEventListener("ended", () => {
+		if (!jukeboxAmbientAudio || !ambientSongSources.length) return;
+		currentAmbientSongIndex =
+			(currentAmbientSongIndex + 1) % ambientSongSources.length;
+		if (ambientSongGapTimeout) window.clearTimeout(ambientSongGapTimeout);
+		ambientSongGapTimeout = window.setTimeout(() => {
+			if (!jukeboxAmbientAudio || ambientJukeboxMuted) return;
+			jukeboxAmbientAudio.src = ambientSongSources[currentAmbientSongIndex];
+			jukeboxAmbientAudio.currentTime = 0;
+			void jukeboxAmbientAudio.play().catch(() => {});
+		}, 2400);
+	});
+
+	jukeboxAmbientSource =
+		audioContext.createMediaElementSource(jukeboxAmbientAudio);
+	jukeboxAmbientGain = audioContext.createGain();
+	jukeboxAmbientGain.gain.value = 0.045;
+	jukeboxAmbientPan = audioContext.createStereoPanner();
+	jukeboxAmbientPan.pan.value = -0.35;
+	jukeboxAmbientSource.connect(jukeboxAmbientGain);
+	jukeboxAmbientGain.connect(jukeboxAmbientPan);
+	jukeboxAmbientPan.connect(musicGain);
+	void jukeboxAmbientAudio.play().catch(() => {});
+}
+
+function setAmbientJukeboxMuted(muted: boolean, resumeDelay = 0) {
+	if (!audioContext || !jukeboxAmbientGain) {
+		ambientJukeboxMuted = muted;
+		return;
+	}
+	if (ambientJukeboxPauseTimeout)
+		window.clearTimeout(ambientJukeboxPauseTimeout);
+
+	if (muted) {
+		ambientJukeboxMuted = true;
+		syncSpatialAudio();
+		ambientJukeboxPauseTimeout = window.setTimeout(() => {
+			if (ambientJukeboxMuted) jukeboxAmbientAudio?.pause();
+		}, 700);
+		return;
+	}
+
+	ambientJukeboxPauseTimeout = window.setTimeout(() => {
+		ambientJukeboxMuted = false;
+		if (jukeboxAmbientAudio) void jukeboxAmbientAudio.play().catch(() => {});
+		syncSpatialAudio();
+	}, resumeDelay);
+}
+
+function syncSpatialAudio() {
+	if (!audioContext || !jukeboxAmbientGain || !jukeboxAmbientPan) return;
+	const now = audioContext.currentTime;
+	tmpAudioVec.copy(JUKEBOX_POSITION).sub(camera.position);
+	const distance = Math.hypot(tmpAudioVec.x, tmpAudioVec.z);
+	const proximity = THREE.MathUtils.clamp(1 - (distance - 1.2) / 10, 0, 1);
+	const targetGain = ambientJukeboxMuted
+		? 0
+		: currentRoom.value === "main"
+			? 0.035 + proximity * 0.32
+			: 0.012;
+	tmpAudioQuat.copy(camera.quaternion).invert();
+	tmpAudioVec.applyQuaternion(tmpAudioQuat);
+	const targetPan = THREE.MathUtils.clamp(
+		tmpAudioVec.x / Math.max(distance * 0.75, 0.001),
+		-0.85,
+		0.85
+	);
+	jukeboxAmbientGain.gain.setTargetAtTime(targetGain, now, 0.22);
+	jukeboxAmbientPan.pan.setTargetAtTime(targetPan, now, 0.18);
+
+	if (restaurantGain) {
+		const restaurantTarget =
+			(currentRoom.value === "main" ? 0.46 : 0.12) * ambienceVolume.value;
+		restaurantGain.gain.setTargetAtTime(restaurantTarget, now, 0.35);
+	}
+}
+
+function applyAudioVolumes() {
+	if (!audioContext) return;
+	musicGain?.gain.setTargetAtTime(
+		musicVolume.value,
+		audioContext.currentTime,
+		0.12
+	);
+	if (restaurantGain) {
+		const restaurantTarget =
+			(currentRoom.value === "main" ? 0.46 : 0.12) * ambienceVolume.value;
+		restaurantGain.gain.setTargetAtTime(
+			restaurantTarget,
+			audioContext.currentTime,
+			0.16
+		);
+	}
+	syncFreezerBuzz();
+	if (macAudio) macAudio.volume = dialogueVolume.value;
+}
+
+watch([musicVolume, ambienceVolume, dialogueVolume], () => {
+	applyAudioVolumes();
+	if (!import.meta.client) return;
+	localStorage.setItem(
+		AUDIO_SETTINGS_KEY,
+		JSON.stringify({
+			musicVolume: musicVolume.value,
+			ambienceVolume: ambienceVolume.value,
+			dialogueVolume: dialogueVolume.value,
+		})
+	);
+});
+
+async function ensureAudio() {
+	if (!audioContext) {
+		audioContext = new AudioContext();
+		masterGain = audioContext.createGain();
+		masterGain.gain.value = 0.78;
+		masterGain.connect(audioContext.destination);
+
+		musicGain = audioContext.createGain();
+		musicGain.gain.value = musicVolume.value;
+		musicGain.connect(masterGain);
+
+		restaurantGain = audioContext.createGain();
+		restaurantGain.gain.value = 0.42 * ambienceVolume.value;
+		restaurantGain.connect(masterGain);
+
+		freezerGain = audioContext.createGain();
+		freezerGain.gain.value = 0;
+		freezerGain.connect(masterGain);
+
+		const hum = audioContext.createOscillator();
+		hum.type = "sawtooth";
+		hum.frequency.value = 58;
+		const humGain = audioContext.createGain();
+		humGain.gain.value = 0.22;
+		hum.connect(humGain);
+		humGain.connect(freezerGain);
+		hum.start();
+
+		const noise = audioContext.createBufferSource();
+		noise.buffer = makeNoiseBuffer(audioContext);
+		noise.loop = true;
+		const filter = audioContext.createBiquadFilter();
+		filter.type = "bandpass";
+		filter.frequency.value = 185;
+		filter.Q.value = 0.72;
+		const noiseGain = audioContext.createGain();
+		noiseGain.gain.value = 0.18;
+		noise.connect(filter);
+		filter.connect(noiseGain);
+		noiseGain.connect(freezerGain);
+		noise.start();
+
+		startRestaurantAmbience();
+	}
+	if (audioContext.state === "suspended") await audioContext.resume();
+	startAmbientJukebox();
+	isAudioReady.value = true;
+	syncFreezerBuzz();
+	syncSpatialAudio();
+}
+
+function syncFreezerBuzz() {
+	if (!audioContext || !freezerGain) return;
+	const target =
+		(currentRoom.value === "fish" ? 0.12 : 0) * ambienceVolume.value;
+	freezerGain.gain.cancelScheduledValues(audioContext.currentTime);
+	freezerGain.gain.linearRampToValueAtTime(
+		target,
+		audioContext.currentTime + 0.55
+	);
+}
+
+function clearJukeboxNodes() {
+	if (jukeboxPulse) window.clearInterval(jukeboxPulse);
+	if (jukeboxStopTimeout) window.clearTimeout(jukeboxStopTimeout);
+	jukeboxPulse = undefined;
+	jukeboxStopTimeout = undefined;
+	try {
+		jukeboxLead?.stop();
+		jukeboxBass?.stop();
+	} catch {
+		// Oscillators throw if they have already been stopped.
+	}
+	jukeboxLead = null;
+	jukeboxBass = null;
+	jukeboxGain = null;
+}
+
+function stopJukebox(resumeAmbient = true, fade = true) {
+	if (!fade || !audioContext || !jukeboxGain) {
+		clearJukeboxNodes();
+		isJukeboxPlaying.value = false;
+		if (resumeAmbient) setAmbientJukeboxMuted(false, 1600);
+		return;
+	}
+
+	if (jukeboxPulse) window.clearInterval(jukeboxPulse);
+	jukeboxPulse = undefined;
+	const now = audioContext.currentTime;
+	jukeboxGain.gain.cancelScheduledValues(now);
+	jukeboxGain.gain.setValueAtTime(
+		Math.max(jukeboxGain.gain.value, 0.0001),
+		now
+	);
+	jukeboxGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+	jukeboxStopTimeout = window.setTimeout(() => {
+		clearJukeboxNodes();
+	}, 560);
+	isJukeboxPlaying.value = false;
+	if (resumeAmbient) setAmbientJukeboxMuted(false, 1600);
+}
+
+async function startJukebox(trackIndex = currentJukeboxTrack.value) {
+	await ensureAudio();
+	if (!audioContext) return;
+	stopJukebox(false, false);
+	setAmbientJukeboxMuted(true);
+	currentJukeboxTrack.value = trackIndex;
+	const track = jukeboxTracks[trackIndex];
+	jukeboxStep = 0;
+
+	jukeboxGain = audioContext.createGain();
+	jukeboxGain.gain.value = 0.0001;
+	jukeboxGain.connect(musicGain ?? masterGain ?? audioContext.destination);
+	jukeboxGain.gain.exponentialRampToValueAtTime(
+		0.12,
+		audioContext.currentTime + 0.5
+	);
+
+	jukeboxLead = audioContext.createOscillator();
+	jukeboxLead.type = "square";
+	jukeboxLead.frequency.value = track.lead[0];
+	const leadFilter = audioContext.createBiquadFilter();
+	leadFilter.type = "lowpass";
+	leadFilter.frequency.value = 1250;
+	jukeboxLead.connect(leadFilter);
+	leadFilter.connect(jukeboxGain);
+
+	jukeboxBass = audioContext.createOscillator();
+	jukeboxBass.type = "triangle";
+	jukeboxBass.frequency.value = track.bass[0];
+	const bassGain = audioContext.createGain();
+	bassGain.gain.value = 0.55;
+	jukeboxBass.connect(bassGain);
+	bassGain.connect(jukeboxGain);
+
+	jukeboxLead.start();
+	jukeboxBass.start();
+	isJukeboxPlaying.value = true;
+
+	const beatMs = Math.max(90, Math.round(60000 / track.tempo));
+	jukeboxPulse = window.setInterval(() => {
+		if (!audioContext || !jukeboxLead || !jukeboxBass || !jukeboxGain) return;
+		const now = audioContext.currentTime;
+		const lead = track.lead[jukeboxStep % track.lead.length];
+		const bass = track.bass[jukeboxStep % track.bass.length];
+		jukeboxLead.frequency.setTargetAtTime(lead, now, 0.025);
+		jukeboxBass.frequency.setTargetAtTime(bass, now, 0.04);
+		jukeboxGain.gain.cancelScheduledValues(now);
+		jukeboxGain.gain.setValueAtTime(0.18, now);
+		jukeboxGain.gain.exponentialRampToValueAtTime(0.08, now + beatMs / 1000);
+		jukeboxStep++;
+	}, beatMs);
+}
+
+function toggleJukebox(trackIndex = currentJukeboxTrack.value) {
+	if (isJukeboxPlaying.value && trackIndex === currentJukeboxTrack.value) {
+		stopJukebox();
+		return;
+	}
+	void startJukebox(trackIndex);
+	void playRandomMacLine("song");
+}
+
+function pickMacLine(category?: MacLineCategory) {
+	const candidates = macLines
+		.map((line, index) => ({ line, index }))
+		.filter(({ line }) => !category || line.category === category);
+	const pool = candidates.length
+		? candidates
+		: macLines.map((line, index) => ({ line, index }));
+	const freshPool =
+		pool.length > 1
+			? pool.filter(({ index }) => index !== lastMacLineIndex)
+			: pool;
+	return freshPool[Math.floor(Math.random() * freshPool.length)];
+}
+
+async function playMacLine(index = macLineIndex.value) {
+	await ensureAudio();
+	const line = macLines[index % macLines.length];
+	macLineIndex.value = index % macLines.length;
+	lastMacLineIndex = index % macLines.length;
+	currentMacLineText.value = line.text;
+	isMacSpeaking.value = true;
+	macAudio?.pause();
+	macAudio = new Audio(line.src);
+	macAudio.volume = dialogueVolume.value;
+	macAudio.addEventListener("ended", () => {
+		isMacSpeaking.value = false;
+	});
+	try {
+		await macAudio.play();
+	} catch {
+		isMacSpeaking.value = false;
+		if ("speechSynthesis" in window) {
+			const utterance = new SpeechSynthesisUtterance(line.text);
+			utterance.rate = 0.92;
+			utterance.pitch = 0.88;
+			utterance.volume = dialogueVolume.value;
+			window.speechSynthesis.speak(utterance);
+		}
+	}
+	macLineIndex.value = (macLineIndex.value + 1) % macLines.length;
+}
+
+async function playRandomMacLine(category?: MacLineCategory) {
+	const picked = pickMacLine(category);
+	await playMacLine(picked.index);
+}
+
 // ── OPEN / CLOSE SECTION ─────────────────────────────
 function openSection(sec: Section) {
 	if (activeSection.value === sec) return;
+	void ensureAudio();
 	activeSection.value = sec;
+	if (sec === "mac") void playRandomMacLine("greeting");
 	if (document.pointerLockElement) document.exitPointerLock();
 }
 
@@ -73,6 +749,7 @@ function placePlayer(x: number, z: number, yaw: number) {
 
 async function enterRoom(room: RoomKey) {
 	if (isTeleporting.value) return;
+	void ensureAudio();
 	isTeleporting.value = true;
 	teleportLabel.value =
 		room === "main"
@@ -83,6 +760,8 @@ async function enterRoom(room: RoomKey) {
 	await new Promise(resolve => window.setTimeout(resolve, 520));
 	ensureRoomLoaded?.(room);
 	currentRoom.value = room;
+	syncFreezerBuzz();
+	if (room === "fish") void playRandomMacLine("freezer");
 	syncRoomVisibility?.(room);
 	const spawn = ROOM_SPAWNS[room];
 	placePlayer(spawn.x, spawn.z, spawn.yaw);
@@ -129,7 +808,10 @@ function handleInteract() {
 onMounted(() => {
 	if (!canvas.value || typeof window === "undefined") return;
 	const el = canvas.value;
+	loadingProgress.value = 4;
+	loadingStatus.value = "warming the grill";
 
+	setLoading("starting the renderer", 8);
 	scene = new THREE.Scene();
 	scene.fog = new THREE.FogExp2(0x120705, 0.019);
 	scene.background = new THREE.Color(0x120705);
@@ -153,21 +835,28 @@ onMounted(() => {
 	renderer.outputColorSpace = THREE.SRGBColorSpace;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	renderer.toneMappingExposure = 1.28;
+	setLoading("prepping the diner floor", 16);
 
-	// ── KICK OFF HEAVY CONSTRUCTION AFTER LOADER HAS PAINTED ──
-	// Two rAF + setTimeout ensures the browser has painted the loader UI before
-	// we block the main thread building geometry.
-	requestAnimationFrame(() => {
-		requestAnimationFrame(() => {
-			window.setTimeout(() => buildScene(el), 0);
-		});
-	});
+	// Let the loader visibly progress before the synchronous scene build starts.
+	void warmupLoaderThenBuild(el);
 });
 
 function buildScene(el: HTMLCanvasElement) {
+	const activeRenderer = renderer;
+	if (!activeRenderer) return;
+
 	const C = DINER_PALETTE;
 
-	const gltfLoader = new GLTFLoader();
+	setLoading("hanging signs and lights", 28);
+	const loadingManager = new THREE.LoadingManager();
+	loadingManager.onStart = () => setLoading("fetching diner assets", 34);
+	loadingManager.onProgress = (_url, loaded, total) => {
+		if (!total) return;
+		setLoading("fetching diner assets", 34 + (loaded / total) * 42);
+	};
+	loadingManager.onLoad = () => setLoading("plating the props", 78);
+	loadingManager.onError = () => setLoading("using fallback props", 72);
+	const gltfLoader = new GLTFLoader(loadingManager);
 	const {
 		box,
 		canvasTexture,
@@ -181,12 +870,14 @@ function buildScene(el: HTMLCanvasElement) {
 		textureMaterial,
 	} = createSceneKit({
 		scene,
-		renderer,
+		renderer: activeRenderer,
 		gltfLoader,
+		loadingManager,
 		palette: C,
 	});
 
 	// ── FLOOR ────────────────────────────────────────
+	setLoading("laying the checkerboard", 38);
 	const fc = document.createElement("canvas");
 	fc.width = 1024;
 	fc.height = 1024;
@@ -674,7 +1365,7 @@ function buildScene(el: HTMLCanvasElement) {
 		C.neonBlue,
 		13.4,
 		5.65,
-		4.95,
+		5.55,
 		-Math.PI / 2
 	);
 
@@ -708,11 +1399,11 @@ function buildScene(el: HTMLCanvasElement) {
 	};
 	const menuGlow = makeZoneGlow(0, -7.5, 0xe8a946);
 	const aboutGlow = makeZoneGlow(-12.2, -2.0, 0xff2255);
-	const lbGlow = makeZoneGlow(10.5, -6.5, 0x22aaff);
+	const lbGlow = makeZoneGlow(11.2, -2.15, 0x22aaff);
 	const jukeboxGlow = makeZoneGlow(-11.5, -9.7, 0xff6600);
 	const loreGlow = makeZoneGlow(-12.6, 2.0, 0xfa4040);
-	const fishRoomGlow = makeZoneGlow(12.6, 5.9, 0x89d8c8);
-	const liveRoomGlow = makeZoneGlow(12.6, 0.4, 0x22aaff);
+	const fishRoomGlow = makeZoneGlow(12.6, 6.65, 0x89d8c8);
+	const liveRoomGlow = makeZoneGlow(12.6, 1.15, 0x22aaff);
 
 	// ── INTERACTIVE 3D SOCIAL LINK BUTTONS on back wall ─
 	// These are real clickable 3D planes – no overlay needed, walk up & click
@@ -1233,6 +1924,50 @@ function buildScene(el: HTMLCanvasElement) {
 		subtitle: string;
 		accent: number;
 	}) => {
+		const doorC = document.createElement("canvas");
+		doorC.width = 512;
+		doorC.height = 768;
+		const dctx = doorC.getContext("2d")!;
+		const accentHex = `#${accent.toString(16).padStart(6, "0")}`;
+		const base = dctx.createLinearGradient(0, 0, 512, 768);
+		base.addColorStop(0, "#240b07");
+		base.addColorStop(0.42, "#100604");
+		base.addColorStop(1, "#050303");
+		dctx.fillStyle = base;
+		dctx.fillRect(0, 0, 512, 768);
+		setCanvasNoise(dctx, 512, 768, 0.11);
+		dctx.strokeStyle = accentHex;
+		dctx.lineWidth = 18;
+		dctx.strokeRect(34, 34, 444, 700);
+		dctx.lineWidth = 7;
+		dctx.strokeStyle = "rgba(255,242,200,0.18)";
+		dctx.strokeRect(64, 72, 384, 622);
+		for (let i = 0; i < 4; i++) {
+			dctx.fillStyle =
+				i % 2 === 0 ? "rgba(255,242,200,0.045)" : "rgba(0,0,0,0.16)";
+			dctx.fillRect(86, 110 + i * 142, 340, 88);
+			dctx.strokeStyle = "rgba(255,242,200,0.11)";
+			dctx.lineWidth = 3;
+			dctx.strokeRect(86, 110 + i * 142, 340, 88);
+		}
+		dctx.fillStyle = accentHex;
+		dctx.globalAlpha = 0.2;
+		for (let y = 74; y < 720; y += 46) dctx.fillRect(42, y, 436, 2);
+		dctx.globalAlpha = 1;
+		const handleX = ry > 0 ? 128 : 384;
+		dctx.fillStyle = "#e8a946";
+		dctx.beginPath();
+		dctx.arc(handleX, 394, 22, 0, Math.PI * 2);
+		dctx.fill();
+		dctx.fillStyle = "rgba(255,242,200,0.75)";
+		dctx.beginPath();
+		dctx.arc(handleX - 7, 386, 6, 0, Math.PI * 2);
+		dctx.fill();
+		dctx.fillStyle = "#fff2c8";
+		dctx.font = "bold 34px Impact, sans-serif";
+		dctx.textAlign = "center";
+		dctx.fillText(title, 256, 660);
+
 		const door = roundedBox(1.55, 2.45, 0.16, 0x170806, 0.06, 0.62, 0.08);
 		door.position.set(x, 1.52, z);
 		door.rotation.y = ry;
@@ -1246,6 +1981,25 @@ function buildScene(el: HTMLCanvasElement) {
 		);
 		inset.rotation.y = ry;
 		scene.add(inset);
+
+		const doorSkinTex = canvasTexture(doorC);
+		const doorSkin = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.18, 1.86),
+			textureMaterial(doorSkinTex, {
+				roughness: 0.58,
+				metalness: 0.1,
+				emissive: accent,
+				emissiveMap: doorSkinTex,
+				emissiveIntensity: 0.06,
+			})
+		);
+		doorSkin.position.set(
+			x + Math.sin(ry) * 0.102,
+			1.55,
+			z + Math.cos(ry) * 0.102
+		);
+		doorSkin.rotation.y = ry;
+		scene.add(doorSkin);
 
 		const trimTop = box(1.72, 0.09, 0.08, accent, 0.22, 0.42);
 		trimTop.position.set(x + Math.sin(ry) * 0.09, 2.8, z + Math.cos(ry) * 0.09);
@@ -1310,7 +2064,7 @@ function buildScene(el: HTMLCanvasElement) {
 	});
 	const fishDoor = makeRoomDoor({
 		x: 13.78,
-		z: 5.9,
+		z: 6.65,
 		ry: -Math.PI / 2,
 		title: "FISH FREEZER",
 		subtitle: "what's this?",
@@ -1318,7 +2072,7 @@ function buildScene(el: HTMLCanvasElement) {
 	});
 	const liveDoor = makeRoomDoor({
 		x: 13.78,
-		z: 0.4,
+		z: 1.15,
 		ry: -Math.PI / 2,
 		title: "LIVE ROOM",
 		subtitle: "screens stay on",
@@ -1364,6 +2118,81 @@ function buildScene(el: HTMLCanvasElement) {
 		return sign;
 	};
 
+	let freezerWallTex: THREE.Texture | null = null;
+	let freezerFloorTex: THREE.Texture | null = null;
+	const getFreezerWallTexture = () => {
+		if (freezerWallTex) return freezerWallTex;
+		const c = document.createElement("canvas");
+		c.width = 512;
+		c.height = 512;
+		const ctx = c.getContext("2d")!;
+		const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+		gradient.addColorStop(0, "#d9fff8");
+		gradient.addColorStop(0.42, "#93c7bf");
+		gradient.addColorStop(1, "#345c59");
+		ctx.fillStyle = gradient;
+		ctx.fillRect(0, 0, 512, 512);
+		for (let y = 0; y < 512; y += 96) {
+			ctx.fillStyle =
+				y % 192 === 0 ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.1)";
+			ctx.fillRect(0, y, 512, 42);
+			ctx.strokeStyle = "rgba(0,60,70,0.28)";
+			ctx.lineWidth = 4;
+			ctx.strokeRect(10, y + 8, 492, 78);
+		}
+		for (let x = 48; x < 512; x += 96) {
+			for (let y = 42; y < 512; y += 96) {
+				ctx.fillStyle = "rgba(240,255,255,0.45)";
+				ctx.beginPath();
+				ctx.arc(x, y, 5, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.strokeStyle = "rgba(20,70,72,0.45)";
+				ctx.stroke();
+			}
+		}
+		for (let i = 0; i < 70; i++) {
+			const x = Math.random() * 512;
+			const y = Math.random() * 512;
+			const h = 12 + Math.random() * 52;
+			ctx.strokeStyle = `rgba(255,255,255,${0.08 + Math.random() * 0.18})`;
+			ctx.lineWidth = 2 + Math.random() * 3;
+			ctx.beginPath();
+			ctx.moveTo(x, y);
+			ctx.lineTo(x + Math.random() * 24 - 12, y + h);
+			ctx.stroke();
+		}
+		setCanvasNoise(ctx, 512, 512, 0.07);
+		freezerWallTex = canvasTexture(c);
+		freezerWallTex.wrapS = THREE.RepeatWrapping;
+		freezerWallTex.wrapT = THREE.RepeatWrapping;
+		freezerWallTex.repeat.set(2, 1);
+		return freezerWallTex;
+	};
+	const getFreezerFloorTexture = () => {
+		if (freezerFloorTex) return freezerFloorTex;
+		const c = document.createElement("canvas");
+		c.width = 512;
+		c.height = 512;
+		const ctx = c.getContext("2d")!;
+		ctx.fillStyle = "#0b1618";
+		ctx.fillRect(0, 0, 512, 512);
+		for (let y = 0; y < 512; y += 64) {
+			for (let x = 0; x < 512; x += 64) {
+				ctx.fillStyle = (x / 64 + y / 64) % 2 === 0 ? "#25454a" : "#101c20";
+				ctx.fillRect(x, y, 64, 64);
+				ctx.strokeStyle = "rgba(180,255,245,0.22)";
+				ctx.lineWidth = 2;
+				ctx.strokeRect(x + 2, y + 2, 60, 60);
+			}
+		}
+		setCanvasNoise(ctx, 512, 512, 0.1);
+		freezerFloorTex = canvasTexture(c);
+		freezerFloorTex.wrapS = THREE.RepeatWrapping;
+		freezerFloorTex.wrapT = THREE.RepeatWrapping;
+		freezerFloorTex.repeat.set(3, 3);
+		return freezerFloorTex;
+	};
+
 	const makeRoomShell = ({
 		cx,
 		cz,
@@ -1371,6 +2200,7 @@ function buildScene(el: HTMLCanvasElement) {
 		d,
 		accent,
 		title,
+		variant = "diner",
 	}: {
 		cx: number;
 		cz: number;
@@ -1378,17 +2208,19 @@ function buildScene(el: HTMLCanvasElement) {
 		d: number;
 		accent: number;
 		title: string;
+		variant?: "diner" | "freezer";
 	}) => {
 		const group = new THREE.Group();
 		group.position.set(cx, 0, cz);
 		scene.add(group);
 
+		const freezer = variant === "freezer";
 		const floor = new THREE.Mesh(
 			new THREE.PlaneGeometry(w, d),
 			new THREE.MeshStandardMaterial({
-				map: floorTex,
-				roughness: 0.18,
-				metalness: 0.12,
+				map: freezer ? getFreezerFloorTexture() : floorTex,
+				roughness: freezer ? 0.32 : 0.18,
+				metalness: freezer ? 0.28 : 0.12,
 			})
 		);
 		floor.rotation.x = -Math.PI / 2;
@@ -1397,19 +2229,21 @@ function buildScene(el: HTMLCanvasElement) {
 		group.add(floor);
 
 		const wallMat = new THREE.MeshStandardMaterial({
-			color: 0x3a100d,
-			roughness: 0.78,
-			metalness: 0.02,
+			map: freezer ? getFreezerWallTexture() : null,
+			color: freezer ? 0xb7fff6 : 0x3a100d,
+			roughness: freezer ? 0.48 : 0.78,
+			metalness: freezer ? 0.18 : 0.02,
 		});
 		const lowerMat = new THREE.MeshStandardMaterial({
-			map: subwayTex,
-			color: 0xffe3b0,
-			roughness: 0.66,
-			metalness: 0.02,
+			map: freezer ? getFreezerWallTexture() : subwayTex,
+			color: freezer ? 0xc9fff8 : 0xffe3b0,
+			roughness: freezer ? 0.42 : 0.66,
+			metalness: freezer ? 0.22 : 0.02,
 		});
 		const ceilingMat = new THREE.MeshStandardMaterial({
-			color: 0x090302,
-			roughness: 0.85,
+			color: freezer ? 0x061012 : 0x090302,
+			roughness: freezer ? 0.68 : 0.85,
+			metalness: freezer ? 0.2 : 0,
 		});
 
 		const back = new THREE.Mesh(new THREE.BoxGeometry(w, 4.8, 0.18), wallMat);
@@ -1457,6 +2291,43 @@ function buildScene(el: HTMLCanvasElement) {
 		const roomLight = new THREE.PointLight(accent, 1.2, 10, 1.7);
 		roomLight.position.set(0, 3.5, 0);
 		group.add(roomLight);
+		if (freezer) {
+			const coldLight = new THREE.PointLight(0xcfffff, 0.75, 8, 1.8);
+			coldLight.position.set(-2.2, 2.7, -1.1);
+			group.add(coldLight);
+			for (const zLine of [-d / 2 + 1.0, 0, d / 2 - 1.0]) {
+				const pipe = new THREE.Mesh(
+					new THREE.CylinderGeometry(0.035, 0.035, w - 1.2, 16),
+					new THREE.MeshStandardMaterial({
+						color: 0xbbeee6,
+						roughness: 0.28,
+						metalness: 0.48,
+					})
+				);
+				pipe.rotation.z = Math.PI / 2;
+				pipe.position.set(0, 4.18, zLine);
+				group.add(pipe);
+			}
+			for (let i = 0; i < 18; i++) {
+				const frost = new THREE.Mesh(
+					new THREE.PlaneGeometry(0.25 + Math.random() * 0.35, 0.18),
+					new THREE.MeshStandardMaterial({
+						color: 0xe8ffff,
+						transparent: true,
+						opacity: 0.28,
+						roughness: 0.2,
+						depthWrite: false,
+					})
+				);
+				frost.position.set(
+					-w / 2 + 0.18,
+					1.4 + Math.random() * 2.2,
+					-d / 2 + 0.8 + Math.random() * (d - 1.6)
+				);
+				frost.rotation.y = Math.PI / 2;
+				group.add(frost);
+			}
+		}
 		makeRoomSign(title, accent, cx, 3.55, cz - d / 2 + 0.12, 0, 3.1, 0.72);
 		return group;
 	};
@@ -1565,7 +2436,7 @@ function buildScene(el: HTMLCanvasElement) {
 			title: "LORE HALL",
 		});
 		makeRoomDoor({
-			x: -16.28,
+			x: -16.72,
 			z: 2.0,
 			ry: -Math.PI / 2,
 			title: "DINER",
@@ -1605,26 +2476,36 @@ function buildScene(el: HTMLCanvasElement) {
 	const buildFishRoom = () => {
 		makeRoomShell({
 			cx: 21.8,
-			cz: 6.2,
+			cz: 6.65,
 			w: 10.4,
 			d: 7.0,
 			accent: C.teal,
 			title: "FISH FREEZER",
+			variant: "freezer",
 		});
 		makeRoomDoor({
-			x: 16.28,
-			z: 6.2,
+			x: 16.72,
+			z: 6.65,
 			ry: Math.PI / 2,
 			title: "DINER",
 			subtitle: "return",
 			accent: C.mustard,
 		});
-		makeRoomSign("THE FISH", C.teal, 26.72, 3.15, 6.2, -Math.PI / 2, 2.6, 0.66);
+		makeRoomSign(
+			"THE FISH",
+			C.teal,
+			26.72,
+			3.15,
+			6.65,
+			-Math.PI / 2,
+			2.6,
+			0.66
+		);
 		makeLayeredRelief({
 			path: GREASY_ASSETS.lore.whatsThisFish,
 			x: 26.62,
 			y: 2.05,
-			z: 6.2,
+			z: 6.65,
 			w: 2.8,
 			h: 1.75,
 			ry: -Math.PI / 2,
@@ -1633,7 +2514,7 @@ function buildScene(el: HTMLCanvasElement) {
 			layers: 2,
 		});
 		const fishPlinth = roundedBox(2.35, 0.85, 1.2, 0x07110f, 0.08, 0.42, 0.16);
-		fishPlinth.position.set(25.25, 0.45, 6.2);
+		fishPlinth.position.set(25.25, 0.45, 6.65);
 		scene.add(fishPlinth);
 		const fishCase = new THREE.Mesh(
 			new THREE.BoxGeometry(2.7, 1.15, 1.55),
@@ -1645,10 +2526,10 @@ function buildScene(el: HTMLCanvasElement) {
 				metalness: 0.05,
 			})
 		);
-		fishCase.position.set(25.25, 1.55, 6.2);
+		fishCase.position.set(25.25, 1.55, 6.65);
 		scene.add(fishCase);
 		const freezerLight = new THREE.PointLight(0x89d8c8, 1.2, 5, 1.8);
-		freezerLight.position.set(24.4, 2.8, 6.2);
+		freezerLight.position.set(24.4, 2.8, 6.65);
 		scene.add(freezerLight);
 		for (const shelfZ of [4.05, 8.35]) {
 			const shelf = roundedBox(3.2, 0.16, 0.32, 0x1f3d35, 0.035, 0.36, 0.28);
@@ -1678,7 +2559,7 @@ function buildScene(el: HTMLCanvasElement) {
 			})
 		);
 		coldSlick.rotation.x = -Math.PI / 2;
-		coldSlick.position.set(23.6, 0.012, 6.2);
+		coldSlick.position.set(23.6, 0.012, 6.65);
 		scene.add(coldSlick);
 	};
 
@@ -1692,7 +2573,7 @@ function buildScene(el: HTMLCanvasElement) {
 			title: "LIVE ROOM",
 		});
 		makeRoomDoor({
-			x: 16.28,
+			x: 16.72,
 			z: -5.4,
 			ry: Math.PI / 2,
 			title: "DINER",
@@ -1913,6 +2794,33 @@ function buildScene(el: HTMLCanvasElement) {
 		}
 	};
 
+	const runWhenIdle = (callback: () => void, timeout = 1400) => {
+		const idleWindow = window as Window & {
+			requestIdleCallback?: (
+				cb: IdleRequestCallback,
+				options?: IdleRequestOptions
+			) => number;
+		};
+		if (idleWindow.requestIdleCallback) {
+			idleWindow.requestIdleCallback(callback, { timeout });
+			return;
+		}
+		window.setTimeout(callback, timeout);
+	};
+	let didPreloadRooms = false;
+	const scheduleRoomPreload = () => {
+		if (didPreloadRooms) return;
+		didPreloadRooms = true;
+		(["lore", "fish", "live"] as RoomKey[]).forEach((room, index) => {
+			runWhenIdle(
+				() => {
+					window.setTimeout(() => ensureRoomLoaded?.(room), index * 220);
+				},
+				900 + index * 350
+			);
+		});
+	};
+
 	// ── WIKI LORE PLAQUES + SHELF PROPS (side walls) ──
 	const makeLorePlaque = (
 		x: number,
@@ -2010,15 +2918,15 @@ function buildScene(el: HTMLCanvasElement) {
 	};
 
 	makeLorePlaque(
-		13.78,
-		5.18,
-		3.85,
-		-Math.PI / 2,
+		-13.78,
+		5.15,
+		4.65,
+		Math.PI / 2,
 		"WII IN THE WILD",
 		["field reports from", "the public-chaos archive", "chat remains liable"],
 		"#e8a946"
 	);
-	makeLoreShelf(13.68, 4.15, -Math.PI / 2, C.red, "remote");
+	makeLoreShelf(-13.68, 4.95, Math.PI / 2, C.red, "remote");
 	makeLorePlaque(
 		-13.78,
 		3.15,
@@ -2268,7 +3176,7 @@ function buildScene(el: HTMLCanvasElement) {
 	// Signs hanging from ceiling pointing to each zone
 	makeHangingSign(0, -3.2, 0, "MENU", "▼", 0xe8a946);
 	makeHangingSign(-5.0, -1.8, Math.PI * 0.1, "ABOUT", "◄", 0xcc2828);
-	makeHangingSign(5.0, -1.8, -Math.PI * 0.1, "LEADERBOARD", "►", 0x2255cc);
+	makeHangingSign(6.25, -1.65, -Math.PI * 0.1, "LEADERBOARD", "►", 0x2255cc);
 
 	// ── IN-WORLD TV CABINETS (right wall, no DOM overlays) ──────
 	const liveScreens: {
@@ -2335,8 +3243,8 @@ function buildScene(el: HTMLCanvasElement) {
 		liveScreens.push({ ctx: tvCtx, texture: tvTex, mode });
 		return tvGlow;
 	};
-	const tv1Glow = makeTV(-4.85, "twitch", 0x6444ff);
-	const tv2Glow = makeTV(-1.05, "leaderboard", 0x4488ff);
+	const tv1Glow = makeTV(-6.15, "twitch", 0x6444ff);
+	const tv2Glow = makeTV(-2.05, "leaderboard", 0x4488ff);
 	const renderLiveScreen = (
 		screen: (typeof liveScreens)[number],
 		time: number,
@@ -2403,14 +3311,15 @@ function buildScene(el: HTMLCanvasElement) {
 
 	// ── WINDOW (right wall, near entrance) – framed, not a blob ──
 	const makeWindow = () => {
+		const wz = 3.65;
 		// outer frame
 		const wFrame = box(3.2, 2.6, 0.1, 0x1a0d06, 0.7);
 		wFrame.rotation.y = -Math.PI / 2;
-		wFrame.position.set(13.84, 3.6, 2.5);
+		wFrame.position.set(13.84, 3.6, wz);
 		scene.add(wFrame);
 		// sill
 		const wSill = box(0.08, 0.12, 3.3, 0x0d0703, 0.4, 0.3);
-		wSill.position.set(13.82, 2.38, 2.5);
+		wSill.position.set(13.82, 2.38, wz);
 		scene.add(wSill);
 		// glass – night cityscape
 		const wC = document.createElement("canvas");
@@ -2464,11 +3373,11 @@ function buildScene(el: HTMLCanvasElement) {
 			})
 		);
 		winGlass.rotation.y = -Math.PI / 2;
-		winGlass.position.set(13.76, 3.6, 2.5);
+		winGlass.position.set(13.76, 3.6, wz);
 		scene.add(winGlass);
 		// subtle outward light cast
 		const winLight = new THREE.PointLight(0xff6633, 0.8, 6, 2.0);
-		winLight.position.set(12.5, 3.6, 2.5);
+		winLight.position.set(12.5, 3.6, wz);
 		scene.add(winLight);
 	};
 	makeWindow();
@@ -2589,6 +3498,8 @@ function buildScene(el: HTMLCanvasElement) {
 	midBack.position.set(0, 5.5, -6);
 	scene.add(midBack);
 
+	setLoading("lighting the booths", 86);
+
 	// ── POINTER LOCK + INTERACTION ───────────────────
 	const PI_2 = Math.PI / 2;
 	const raycaster = new THREE.Raycaster();
@@ -2669,6 +3580,7 @@ function buildScene(el: HTMLCanvasElement) {
 	// clicking canvas: raycasting for social buttons OR pointer lock
 	const onCanvasClick = (e: MouseEvent) => {
 		if (!isSceneReady.value) return;
+		void ensureAudio();
 		if (activeSection.value !== "none") return;
 		if (locked) {
 			if (nearZone.value !== "none") return;
@@ -2700,7 +3612,7 @@ function buildScene(el: HTMLCanvasElement) {
 	const clock = new THREE.Clock();
 	let tick = 0;
 	let markedSceneReady = false;
-	let readyTimeout: ReturnType<typeof window.setTimeout> | undefined;
+	let readyTimeout: number | undefined;
 	const loadStartedAt = performance.now();
 	const PLAYER_RADIUS = 0.28;
 	const isBlocked = (x: number, z: number, room: RoomKey) => {
@@ -2853,14 +3765,20 @@ function buildScene(el: HTMLCanvasElement) {
 		steam.geometry.attributes.position.needsUpdate = true;
 		steamMat.opacity = 0.14 + Math.sin(t * 0.7) * 0.04;
 
+		if (tick % 3 === 0) syncSpatialAudio();
 		renderer!.render(scene, camera);
 		if (!markedSceneReady) {
 			markedSceneReady = true;
+			loadingStatus.value = "first render served";
+			loadingProgress.value = Math.max(loadingProgress.value, 68);
 			// Keep the in-component loader readable after the first WebGL frame.
 			const elapsed = performance.now() - loadStartedAt;
-			const remaining = Math.max(0, 700 - elapsed);
+			const remaining = Math.max(180, 520 - elapsed);
 			readyTimeout = window.setTimeout(() => {
-				isSceneReady.value = true;
+				finishLoadingProgress(() => {
+					isSceneReady.value = true;
+					scheduleRoomPreload();
+				});
 			}, remaining);
 		}
 	};
@@ -2878,6 +3796,28 @@ function buildScene(el: HTMLCanvasElement) {
 
 	onUnmounted(() => {
 		cancelAnimationFrame(animId);
+		stopJukebox(false);
+		if (ambientClatterPulse) window.clearInterval(ambientClatterPulse);
+		if (jukeboxStopTimeout) window.clearTimeout(jukeboxStopTimeout);
+		if (ambientSongGapTimeout) window.clearTimeout(ambientSongGapTimeout);
+		if (ambientJukeboxPauseTimeout)
+			window.clearTimeout(ambientJukeboxPauseTimeout);
+		if (loadingProgressTimer) window.clearInterval(loadingProgressTimer);
+		ambientClatterPulse = undefined;
+		jukeboxStopTimeout = undefined;
+		ambientSongGapTimeout = undefined;
+		ambientJukeboxPauseTimeout = undefined;
+		loadingProgressTimer = undefined;
+		jukeboxAmbientAudio?.pause();
+		jukeboxAmbientAudio = null;
+		jukeboxAmbientSource?.disconnect();
+		jukeboxAmbientSource = null;
+		jukeboxAmbientGain = null;
+		jukeboxAmbientPan = null;
+		macAudio?.pause();
+		if (freezerGain && audioContext) {
+			freezerGain.gain.setValueAtTime(0, audioContext.currentTime);
+		}
 		if (readyTimeout) window.clearTimeout(readyTimeout);
 		document.removeEventListener("pointerlockchange", onLockChange);
 		document.removeEventListener("mousemove", onMouseMove);
@@ -2918,8 +3858,11 @@ function buildScene(el: HTMLCanvasElement) {
 				<div class="loader-copy font-bebas">
 					<p class="loader-kicker">EST. 2019 · OPEN LATE · EXTRA GREASY</p>
 					<h1>GREASYGANG</h1>
-					<p class="loader-sub">loading the diner</p>
-					<div class="loader-bar"><span /></div>
+					<p class="loader-sub">{{ loadingStatus }}</p>
+					<div class="loader-bar">
+						<span :style="{ transform: `scaleX(${loadingProgress / 100})` }" />
+					</div>
+					<p class="loader-percent">{{ loadingProgress }}%</p>
 				</div>
 			</div>
 		</Transition>
@@ -3024,9 +3967,60 @@ function buildScene(el: HTMLCanvasElement) {
 			</button>
 		</Transition>
 
+		<button
+			type="button"
+			class="audio-toggle font-bebas"
+			:class="{ active: showAudioSettings }"
+			@click="showAudioSettings = !showAudioSettings"
+		>
+			AUDIO
+		</button>
+
+		<Transition name="slide-right">
+			<div v-if="showAudioSettings" class="audio-panel font-bebas">
+				<div class="audio-panel-head">
+					<p>Sound Mix</p>
+					<button type="button" @click="showAudioSettings = false">×</button>
+				</div>
+				<label>
+					<span>Music</span>
+					<input
+						v-model.number="musicVolume"
+						type="range"
+						min="0"
+						max="1"
+						step="0.01"
+					/>
+					<small>{{ Math.round(musicVolume * 100) }}%</small>
+				</label>
+				<label>
+					<span>Ambience</span>
+					<input
+						v-model.number="ambienceVolume"
+						type="range"
+						min="0"
+						max="1"
+						step="0.01"
+					/>
+					<small>{{ Math.round(ambienceVolume * 100) }}%</small>
+				</label>
+				<label>
+					<span>Dialogue</span>
+					<input
+						v-model.number="dialogueVolume"
+						type="range"
+						min="0"
+						max="1"
+						step="0.01"
+					/>
+					<small>{{ Math.round(dialogueVolume * 100) }}%</small>
+				</label>
+			</div>
+		</Transition>
+
 		<!-- ══════════════════════════════════
-		     MENU PANEL
-		══════════════════════════════════ -->
+			     MENU PANEL
+			══════════════════════════════════ -->
 		<Transition name="slide-up">
 			<div v-if="activeSection === 'menu'" class="section-panel panel-menu">
 				<div class="panel-header font-bebas">
@@ -3173,14 +4167,24 @@ function buildScene(el: HTMLCanvasElement) {
 					<div class="mac-dialogue-copy">
 						<p class="panel-eyebrow">Behind the counter</p>
 						<h2 class="panel-title">GreasyMac</h2>
-						<p class="mac-line">
-							Welcome to the diner. Everything is served live, nothing is
-							refunded, and the grease is structural.
+						<p class="mac-line">{{ currentMacLineText }}</p>
+						<p class="audio-state font-bebas">
+							{{ isMacSpeaking ? "MAC IS TALKING" : "VOICE READY" }}
 						</p>
 						<div class="mac-options font-bebas">
-							<span>ASK ABOUT THE SPECIALS</span>
-							<span>REQUEST EXTRA SAUCE</span>
-							<span>LEAVE QUIETLY</span>
+							<button type="button" @click="playRandomMacLine('specials')">
+								ASK ABOUT THE SPECIALS
+							</button>
+							<button type="button" @click="playRandomMacLine('sauce')">
+								REQUEST EXTRA SAUCE
+							</button>
+							<button type="button" @click="playRandomMacLine('song')">
+								SING FROM PLAYLIST
+							</button>
+							<button type="button" @click="playRandomMacLine('fullSong')">
+								SING A FULL SONG
+							</button>
+							<button type="button" @click="closeSection">LEAVE QUIETLY</button>
 						</div>
 					</div>
 				</div>
@@ -3198,13 +4202,33 @@ function buildScene(el: HTMLCanvasElement) {
 				<p class="panel-eyebrow">Corner cabinet</p>
 				<h2 class="panel-title">Greasy Jukebox</h2>
 				<p class="room-copy">
-					The cabinet hums warm. The good tracks are scratched into the glass,
-					the bad tracks are still somehow louder.
+					{{ isJukeboxPlaying ? "Now spinning" : "The cabinet hums warm" }}:
+					{{ jukeboxTracks[currentJukeboxTrack].name }}
 				</p>
 				<div class="room-actions font-bebas">
-					<span>PLAY THE GREASY MIX</span>
-					<span>CHECK QUEUE</span>
-					<span>WALK AWAY</span>
+					<button
+						v-for="(track, index) in jukeboxTracks"
+						:key="track.name"
+						type="button"
+						:class="{
+							active: isJukeboxPlaying && currentJukeboxTrack === index,
+						}"
+						@click="toggleJukebox(index)"
+					>
+						{{
+							isJukeboxPlaying && currentJukeboxTrack === index
+								? "STOP"
+								: "PLAY"
+						}}
+						{{ track.name }}
+					</button>
+					<button type="button" @click="playRandomMacLine('song')">
+						MAKE MAC SING
+					</button>
+					<button type="button" @click="playRandomMacLine('fullSong')">
+						FULL MAC SONG
+					</button>
+					<button type="button" @click="closeSection">WALK AWAY</button>
 				</div>
 			</div>
 		</Transition>
@@ -3459,11 +4483,20 @@ function buildScene(el: HTMLCanvasElement) {
 
 .loader-bar span {
 	display: block;
-	width: 45%;
+	width: 100%;
 	height: 100%;
 	background: #fa4040;
 	box-shadow: 0 0 1rem #fa4040;
-	animation: loaderBar 1.05s ease-in-out infinite;
+	transform: scaleX(0);
+	transform-origin: left center;
+	transition: transform 0.36s ease;
+}
+.loader-percent {
+	margin: 0.55rem 0 0;
+	color: rgba(232, 169, 70, 0.84);
+	font-size: clamp(0.75rem, 1.5vw, 0.98rem);
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
 }
 
 .loader-enter-active,
@@ -3700,8 +4733,88 @@ function buildScene(el: HTMLCanvasElement) {
 	color: white;
 }
 
+.audio-toggle {
+	position: absolute;
+	top: 5rem;
+	right: 1.4rem;
+	z-index: 42;
+	border: 2px solid rgba(232, 169, 70, 0.72);
+	background: rgba(37, 18, 14, 0.84);
+	color: #e8a946;
+	padding: 0.42rem 0.9rem 0.3rem;
+	font-size: 0.86rem;
+	letter-spacing: 0.14em;
+	cursor: pointer;
+	box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+}
+.audio-toggle:hover,
+.audio-toggle.active {
+	background: rgba(232, 169, 70, 0.18);
+	color: #fff2c8;
+	border-color: #fff2c8;
+}
+.audio-panel {
+	position: absolute;
+	top: 8.2rem;
+	right: 1.4rem;
+	z-index: 43;
+	width: min(280px, calc(100vw - 2rem));
+	border: 3px solid #e8a946;
+	background:
+		linear-gradient(rgba(255, 242, 200, 0.04), transparent),
+		rgba(21, 8, 5, 0.94);
+	color: #fff2c8;
+	padding: 0.75rem;
+	box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.55);
+}
+.audio-panel-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.65rem;
+	border-bottom: 1px dashed rgba(232, 169, 70, 0.34);
+	padding-bottom: 0.45rem;
+}
+.audio-panel-head p {
+	margin: 0;
+	color: #e8a946;
+	font-size: 1rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+.audio-panel-head button {
+	border: 1px solid rgba(232, 169, 70, 0.45);
+	background: rgba(250, 64, 64, 0.18);
+	color: #fff2c8;
+	cursor: pointer;
+	font: inherit;
+	line-height: 1;
+	width: 1.45rem;
+	height: 1.45rem;
+}
+.audio-panel label {
+	display: grid;
+	grid-template-columns: 5.2rem 1fr 2.4rem;
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0.55rem 0;
+	color: rgba(255, 242, 200, 0.82);
+	font-size: 0.78rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.audio-panel input[type="range"] {
+	width: 100%;
+	accent-color: #e8a946;
+	cursor: pointer;
+}
+.audio-panel small {
+	color: rgba(232, 169, 70, 0.72);
+	text-align: right;
+}
+
 /* ══════════════════════════════════════════════════════
-   SHARED PANEL BASE
+	   SHARED PANEL BASE
 ══════════════════════════════════════════════════════ */
 .section-panel {
 	position: absolute;
@@ -4152,18 +5265,46 @@ function buildScene(el: HTMLCanvasElement) {
 	line-height: 1.4;
 	margin: 0.45rem 0 0.8rem;
 }
+.audio-state {
+	display: inline-flex;
+	align-items: center;
+	width: fit-content;
+	margin: 0 0 0.65rem;
+	border: 2px solid rgba(250, 64, 64, 0.48);
+	background: rgba(250, 64, 64, 0.14);
+	color: #ff8a6f;
+	font-size: 0.72rem;
+	letter-spacing: 0.12em;
+	padding: 0.25rem 0.5rem 0.17rem;
+}
 .mac-options {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.45rem;
 }
-.mac-options span {
+.mac-options button,
+.room-actions button {
 	border: 2px solid rgba(232, 169, 70, 0.5);
 	color: #e8a946;
 	background: rgba(37, 18, 14, 0.86);
 	padding: 0.28rem 0.55rem 0.18rem;
 	font-size: 0.75rem;
 	letter-spacing: 0.08em;
+	font: inherit;
+	cursor: pointer;
+	text-transform: uppercase;
+	box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.34);
+	transition:
+		transform 0.16s ease,
+		border-color 0.16s ease,
+		color 0.16s ease;
+}
+.mac-options button:hover,
+.room-actions button:hover,
+.room-actions button.active {
+	border-color: #fff2c8;
+	color: #fff2c8;
+	transform: translate(-1px, 1px);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4214,13 +5355,11 @@ function buildScene(el: HTMLCanvasElement) {
 	flex-wrap: wrap;
 	gap: 0.45rem;
 }
-.room-actions span {
-	border: 2px solid rgba(232, 169, 70, 0.5);
-	color: #e8a946;
-	background: rgba(37, 18, 14, 0.86);
-	padding: 0.28rem 0.55rem 0.18rem;
-	font-size: 0.75rem;
-	letter-spacing: 0.08em;
+.room-actions button.active {
+	background: rgba(255, 102, 0, 0.28);
+	box-shadow:
+		3px 3px 0 rgba(0, 0, 0, 0.34),
+		0 0 18px rgba(255, 102, 0, 0.22);
 }
 
 .fade-enter-active,

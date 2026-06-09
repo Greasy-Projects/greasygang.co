@@ -74,7 +74,7 @@ export const DINER_PALETTE: DinerPalette = {
 export const ROOM_SPAWNS: Record<RoomKey, RoomSpawn> = {
 	main: { x: 0, z: 1.2, yaw: 0 },
 	lore: { x: -21.8, z: 2.0, yaw: -Math.PI / 2 },
-	fish: { x: 21.8, z: 6.2, yaw: Math.PI / 2 },
+	fish: { x: 21.8, z: 6.65, yaw: Math.PI / 2 },
 	live: { x: 21.8, z: -5.4, yaw: Math.PI / 2 },
 };
 
@@ -126,9 +126,9 @@ export const ZONES: Zone[] = [
 	},
 	{
 		key: "leaderboard",
-		cx: 10.4,
-		cz: -5.6,
-		radius: 3.7,
+		cx: 11.2,
+		cz: -2.15,
+		radius: 2.8,
 		label: "LEADERBOARD",
 		emoji: "🏆",
 	},
@@ -160,7 +160,7 @@ export const ZONES: Zone[] = [
 	{
 		key: "fishRoom",
 		cx: 12.8,
-		cz: 5.9,
+		cz: 6.65,
 		radius: 2.0,
 		label: "ENTER FISH FREEZER",
 		emoji: "◆",
@@ -169,7 +169,7 @@ export const ZONES: Zone[] = [
 	{
 		key: "liveRoom",
 		cx: 12.8,
-		cz: 0.4,
+		cz: 1.15,
 		radius: 2.0,
 		label: "ENTER LIVE ROOM",
 		emoji: "●",
@@ -186,8 +186,8 @@ export const ZONES: Zone[] = [
 	},
 	{
 		key: "exitMain",
-		cx: 16.6,
-		cz: 6.2,
+		cx: 16.85,
+		cz: 6.65,
 		radius: 2.1,
 		label: "BACK TO DINER",
 		emoji: "↩",
@@ -195,7 +195,7 @@ export const ZONES: Zone[] = [
 	},
 	{
 		key: "exitMain",
-		cx: 16.6,
+		cx: 16.85,
 		cz: -5.4,
 		radius: 2.1,
 		label: "BACK TO DINER",

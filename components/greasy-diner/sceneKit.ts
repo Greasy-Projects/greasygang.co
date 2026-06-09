@@ -22,6 +22,7 @@ interface SceneKitOptions {
 	scene: THREE.Scene;
 	renderer: THREE.WebGLRenderer;
 	gltfLoader: GLTFLoader;
+	loadingManager?: THREE.LoadingManager;
 	palette: DinerPalette;
 }
 
@@ -29,6 +30,7 @@ export function createSceneKit({
 	scene,
 	renderer,
 	gltfLoader,
+	loadingManager,
 	palette: C,
 }: SceneKitOptions) {
 	const box = (
@@ -144,7 +146,7 @@ export function createSceneKit({
 		return canvasTexture(pC);
 	};
 
-	const textureLoader = new THREE.TextureLoader();
+	const textureLoader = new THREE.TextureLoader(loadingManager);
 	const loadAssetTexture = (path: string) => {
 		const texture = textureLoader.load(path);
 		texture.colorSpace = THREE.SRGBColorSpace;
