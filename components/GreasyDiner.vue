@@ -3,17 +3,38 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { GREASY_ASSETS } from "./greasy-diner/assets";
 import {
+	DINER_OBJECTS,
 	DINER_PALETTE,
+	HANGING_SIGNS,
+	RIGHT_WALL_TVS,
 	ROOM_BOUNDS,
 	ROOM_COLLIDERS,
+	ROOM_DOORS,
 	ROOM_SPAWNS,
+	ZONE_GLOWS,
 	ZONES,
 	type Button,
 	type RoomKey,
 	type Section,
 	type ZoneKey,
 } from "./greasy-diner/config";
+import {
+	buildMainLoreClippings,
+	buildSideLoreWalls,
+	createClippingBuilder,
+} from "./greasy-diner/objects/loreWalls";
+import { createCounterArea } from "./greasy-diner/objects/counter";
+import { buildJukebox } from "./greasy-diner/objects/jukebox";
+import { createPendantLamp } from "./greasy-diner/objects/pendantLamp";
+import {
+	createGreasePuddle,
+	createZoneGlow,
+} from "./greasy-diner/objects/floorEffects";
+import { createSideRoomBuilders } from "./greasy-diner/objects/rooms";
+import { buildDinerSeating } from "./greasy-diner/objects/seating";
+import { createBarStool } from "./greasy-diner/objects/stool";
 import { createSceneKit } from "./greasy-diner/sceneKit";
+import type { DinerDevEditor } from "./greasy-diner/dev/editor";
 
 const props = defineProps<{ buttons: Button[] }>();
 
@@ -245,6 +266,9 @@ let camera: THREE.PerspectiveCamera;
 let scene: THREE.Scene;
 let animId = 0;
 let loadingProgressTimer: number | undefined;
+let devEditor: DinerDevEditor | null = null;
+let isDinerDevEditing = false;
+let pendingDevEditorOpen = false;
 
 // walking state
 const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -259,6 +283,15 @@ function setLoading(status: string, progress: number) {
 	loadingProgress.value = Math.max(
 		loadingProgress.value,
 		Math.min(99, Math.round(progress))
+	);
+}
+
+function isDevEditorToggleKey(event: KeyboardEvent) {
+	return (
+		event.code === "Backquote" ||
+		event.code === "F10" ||
+		event.key === "`" ||
+		event.key === "~"
 	);
 }
 
@@ -737,7 +770,7 @@ function closeSection() {
 	activeSection.value = "none";
 	// Re-enter pointer lock so player can walk immediately
 	nextTick(() => {
-		canvas.value?.requestPointerLock();
+		if (!isDinerDevEditing) canvas.value?.requestPointerLock();
 	});
 }
 
@@ -754,11 +787,20 @@ async function enterRoom(room: RoomKey) {
 	teleportLabel.value =
 		room === "main"
 			? "Returning to the diner"
-			: `Entering ${room === "lore" ? "Lore Hall" : room === "fish" ? "Fish Freezer" : "Live Room"}`;
+			: `Entering ${
+					room === "lore"
+						? "Lore Hall"
+						: room === "fish"
+							? "Fish Freezer"
+							: room === "kitchen"
+								? "Kitchen"
+								: "Live Room"
+				}`;
 	focusedLink.value = null;
 	focusedLinkLabel.value = null;
-	await new Promise(resolve => window.setTimeout(resolve, 520));
 	ensureRoomLoaded?.(room);
+	syncRoomVisibility?.(currentRoom.value);
+	await new Promise(resolve => window.setTimeout(resolve, 520));
 	currentRoom.value = room;
 	syncFreezerBuzz();
 	if (room === "fish") void playRandomMacLine("freezer");
@@ -767,14 +809,14 @@ async function enterRoom(room: RoomKey) {
 	placePlayer(spawn.x, spawn.z, spawn.yaw);
 	await nextTick();
 	isTeleporting.value = false;
-	if (document.pointerLockElement !== canvas.value) {
+	if (!isDinerDevEditing && document.pointerLockElement !== canvas.value) {
 		canvas.value?.requestPointerLock();
 	}
 }
 
 // ── KEY E handler ────────────────────────────────────
 function handleInteract() {
-	if (!isLocked.value || isTeleporting.value) return;
+	if (!isLocked.value || isTeleporting.value || isDinerDevEditing) return;
 	if (nearZone.value === "mac") {
 		openSection("mac");
 		return;
@@ -789,6 +831,10 @@ function handleInteract() {
 	}
 	if (nearZone.value === "liveRoom") {
 		enterRoom("live");
+		return;
+	}
+	if (nearZone.value === "kitchenRoom") {
+		enterRoom("kitchen");
 		return;
 	}
 	if (nearZone.value === "exitMain") {
@@ -1029,134 +1075,11 @@ function buildScene(el: HTMLCanvasElement) {
 	scene.add(ceil);
 
 	// ── COUNTER ──────────────────────────────────────
-	const counter = box(12, 1.12, 1.4, 0x150908, 0.65);
-	counter.position.set(0, 0.56, -8.8);
-	scene.add(counter);
-	const marbC = document.createElement("canvas");
-	marbC.width = 512;
-	marbC.height = 128;
-	const mc = marbC.getContext("2d")!;
-	mc.fillStyle = "#0d0705";
-	mc.fillRect(0, 0, 512, 128);
-	mc.strokeStyle = "rgba(70,42,18,0.55)";
-	mc.lineWidth = 1.5;
-	for (let v = 0; v < 8; v++) {
-		mc.beginPath();
-		mc.moveTo(Math.random() * 512, 0);
-		mc.bezierCurveTo(
-			Math.random() * 512,
-			40,
-			Math.random() * 512,
-			88,
-			Math.random() * 512,
-			128
-		);
-		mc.stroke();
-	}
-	const ctop = new THREE.Mesh(
-		new THREE.BoxGeometry(12.18, 0.1, 1.52),
-		new THREE.MeshStandardMaterial({
-			map: canvasTexture(marbC),
-			roughness: 0.07,
-			metalness: 0.45,
-		})
-	);
-	ctop.position.set(0, 1.17, -8.8);
-	ctop.castShadow = true;
-	scene.add(ctop);
-	const nosing = box(12.16, 0.07, 0.05, C.mustard, 0.22, 0.45);
-	nosing.position.set(0, 1.12, -8.05);
-	scene.add(nosing);
-	const griddle = box(4.25, 0.055, 0.95, 0x20120b, 0.18, 0.65, 0.05, 0xffaa44);
-	griddle.position.set(0.1, 1.24, -8.58);
-	scene.add(griddle);
-	const griddleSlick = new THREE.Mesh(
-		new THREE.PlaneGeometry(3.4, 0.74),
-		new THREE.MeshStandardMaterial({
-			map: makeGreaseSlick(512, 160, "#7a2f05", 0.7),
-			transparent: true,
-			roughness: 0.05,
-			metalness: 0.35,
-			depthWrite: false,
-		})
-	);
-	griddleSlick.rotation.x = -Math.PI / 2;
-	griddleSlick.position.set(0.25, 1.275, -8.52);
-	scene.add(griddleSlick);
-	const heatLight = new THREE.PointLight(0xff6622, 0.65, 3.2, 2.2);
-	heatLight.position.set(0.1, 1.75, -8.5);
-	scene.add(heatLight);
-	const reg = box(0.6, 0.55, 0.4, 0x0a0705, 0.4, 0.3);
-	reg.position.set(-4.5, 1.44, -8.85);
-	scene.add(reg);
-	const regScreen = box(0.44, 0.3, 0.02, 0x001122, 0.2, 0.1, 1.5, 0x002244);
-	regScreen.position.set(-4.5, 1.6, -8.65);
-	scene.add(regScreen);
-	const regGlow = new THREE.PointLight(0x0044aa, 0.3, 1.5, 2);
-	regGlow.position.set(-4.5, 1.65, -8.5);
-	scene.add(regGlow);
-	const napkin = box(0.08, 0.28, 0.22, C.chrome, 0.1, 0.9);
-	napkin.position.set(2.5, 1.35, -8.8);
-	scene.add(napkin);
-	[
-		[-2.25, C.red],
-		[-1.95, C.mustard],
-		[2.1, C.pickle],
-		[2.35, C.cream],
-	].forEach(([x, color]) => {
-		const bottle = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.08, 0.1, 0.42, 12),
-			new THREE.MeshStandardMaterial({
-				color: color as number,
-				roughness: 0.36,
-				metalness: 0.04,
-			})
-		);
-		bottle.position.set(x as number, 1.46, -8.38);
-		bottle.castShadow = true;
-		scene.add(bottle);
-	});
+	scene.add(createCounterArea({ C, box, canvasTexture, makeGreaseSlick }));
 
 	// ── STOOLS ───────────────────────────────────────
-	for (let i = -4.5; i <= 4.5; i += 1.5) {
-		const seat = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.3, 0.28, 0.1, 16),
-			new THREE.MeshStandardMaterial({ color: C.red, roughness: 0.45 })
-		);
-		seat.position.set(i, 0.9, -7.4);
-		seat.castShadow = true;
-		scene.add(seat);
-		const stem = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.022, 0.022, 0.9, 8),
-			new THREE.MeshStandardMaterial({
-				color: C.chrome,
-				roughness: 0.08,
-				metalness: 0.96,
-			})
-		);
-		stem.position.set(i, 0.45, -7.4);
-		scene.add(stem);
-		const base = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.26, 0.3, 0.05, 16),
-			new THREE.MeshStandardMaterial({
-				color: C.chrome,
-				roughness: 0.08,
-				metalness: 0.96,
-			})
-		);
-		base.position.set(i, 0.025, -7.4);
-		scene.add(base);
-		const rest = new THREE.Mesh(
-			new THREE.TorusGeometry(0.18, 0.017, 8, 20),
-			new THREE.MeshStandardMaterial({
-				color: C.chrome,
-				roughness: 0.08,
-				metalness: 0.96,
-			})
-		);
-		rest.rotation.x = Math.PI / 2;
-		rest.position.set(i, 0.3, -7.4);
-		scene.add(rest);
+	for (let i = -4.5, index = 1; i <= 4.5; i += 1.5, index++) {
+		scene.add(createBarStool({ C, x: i, z: -7.4, key: `bar-stool-${index}` }));
 	}
 
 	// ── MAC NPC + COUNTER CHARACTER PIECES ───────────
@@ -1370,40 +1293,12 @@ function buildScene(el: HTMLCanvasElement) {
 	);
 
 	// ── ZONE INDICATOR GLOWS on floor ────────────────
-	const makeZoneGlow = (x: number, z: number, color: number) => {
-		const gC = document.createElement("canvas");
-		gC.width = 256;
-		gC.height = 256;
-		const gctx = gC.getContext("2d")!;
-		const g = gctx.createRadialGradient(128, 128, 8, 128, 128, 128);
-		const hex = "#" + color.toString(16).padStart(6, "0");
-		g.addColorStop(0, hex + "55");
-		g.addColorStop(0.5, hex + "22");
-		g.addColorStop(1, "transparent");
-		gctx.fillStyle = g;
-		gctx.fillRect(0, 0, 256, 256);
-		const m = new THREE.Mesh(
-			new THREE.PlaneGeometry(5, 5),
-			new THREE.MeshStandardMaterial({
-				map: canvasTexture(gC),
-				transparent: true,
-				roughness: 0.1,
-				metalness: 0.2,
-				depthWrite: false,
-			})
-		);
-		m.rotation.x = -Math.PI / 2;
-		m.position.set(x, 0.01, z);
-		scene.add(m);
-		return m;
-	};
-	const menuGlow = makeZoneGlow(0, -7.5, 0xe8a946);
-	const aboutGlow = makeZoneGlow(-12.2, -2.0, 0xff2255);
-	const lbGlow = makeZoneGlow(11.2, -2.15, 0x22aaff);
-	const jukeboxGlow = makeZoneGlow(-11.5, -9.7, 0xff6600);
-	const loreGlow = makeZoneGlow(-12.6, 2.0, 0xfa4040);
-	const fishRoomGlow = makeZoneGlow(12.6, 6.65, 0x89d8c8);
-	const liveRoomGlow = makeZoneGlow(12.6, 1.15, 0x22aaff);
+	const zoneGlows = Object.fromEntries(
+		ZONE_GLOWS.map(glow => [
+			glow.key,
+			createZoneGlow({ scene, canvasTexture }, glow.x, glow.z, glow.color),
+		])
+	) as Record<(typeof ZONE_GLOWS)[number]["key"], THREE.Mesh>;
 
 	// ── INTERACTIVE 3D SOCIAL LINK BUTTONS on back wall ─
 	// These are real clickable 3D planes – no overlay needed, walk up & click
@@ -1567,303 +1462,37 @@ function buildScene(el: HTMLCanvasElement) {
 
 	// ── HANGING LAMPS ────────────────────────────────
 	const lampLights: THREE.PointLight[] = [];
-	const makePendantLamp = (lx: number, lz: number, drop = 2.55) => {
-		const cord = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.012, 0.012, drop, 8),
-			new THREE.MeshStandardMaterial({ color: 0x0a0a0a })
-		);
-		cord.position.set(lx, 8.2 - drop / 2, lz);
-		scene.add(cord);
-
-		loadGlbProp({
-			path: GREASY_ASSETS.furniture.lampWithShade,
-			x: lx,
-			y: 5.35,
-			z: lz,
-			scale: 0.34,
-			ry: Math.PI,
-			tint: 0x15100b,
+	[
+		{ x: -5.8, z: -6.15, key: "pendant-lamp-left" },
+		{ x: 5.8, z: -6.15, key: "pendant-lamp-right" },
+	].forEach(({ x, z, key }) => {
+		const { group, light } = createPendantLamp({
+			C,
+			assets: GREASY_ASSETS,
+			loadGlbProp,
+			x,
+			z,
+			key,
 		});
-
-		const shadeProfile = [
-			new THREE.Vector2(0.18, -0.34),
-			new THREE.Vector2(0.58, -0.18),
-			new THREE.Vector2(0.72, 0.18),
-			new THREE.Vector2(0.34, 0.38),
-		];
-		const shade = new THREE.Mesh(
-			new THREE.LatheGeometry(shadeProfile, 32),
-			new THREE.MeshStandardMaterial({
-				color: 0x0d0d0d,
-				side: THREE.DoubleSide,
-				roughness: 0.24,
-				metalness: 0.78,
-			})
-		);
-		shade.position.set(lx, 5.65, lz);
-		shade.castShadow = true;
-		scene.add(shade);
-
-		const ring = new THREE.Mesh(
-			new THREE.TorusGeometry(0.58, 0.018, 8, 36),
-			new THREE.MeshStandardMaterial({
-				color: C.mustard,
-				roughness: 0.08,
-				metalness: 0.82,
-			})
-		);
-		ring.rotation.x = Math.PI / 2;
-		ring.position.set(lx, 5.44, lz);
-		scene.add(ring);
-
-		const disc = new THREE.Mesh(
-			new THREE.CircleGeometry(0.36, 32),
-			new THREE.MeshStandardMaterial({
-				color: C.cream,
-				emissive: C.butter,
-				emissiveIntensity: 5.5,
-				roughness: 1,
-			})
-		);
-		disc.rotation.x = Math.PI / 2;
-		disc.position.set(lx, 5.42, lz);
-		scene.add(disc);
-
-		const pl = new THREE.PointLight(0xffcc66, 2.8, 7.5, 1.6);
-		pl.position.set(lx, 5.25, lz);
-		pl.castShadow = true;
-		pl.shadow.mapSize.set(512, 512);
-		scene.add(pl);
-		lampLights.push(pl);
-	};
-	makePendantLamp(-5.8, -6.15);
-	makePendantLamp(5.8, -6.15);
-
-	// ── BOOTHS ───────────────────────────────────────
-	const makeFriesBasket = (x: number, y: number, z: number, rot = 0) => {
-		const group = new THREE.Group();
-		const tray = roundedBox(0.5, 0.11, 0.34, 0xb21f1f, 0.04, 0.55);
-		tray.position.y = 0.02;
-		group.add(tray);
-		for (let i = 0; i < 13; i++) {
-			const fry = new THREE.Mesh(
-				new THREE.CylinderGeometry(0.018, 0.02, 0.42 + Math.random() * 0.16, 6),
-				new THREE.MeshStandardMaterial({ color: 0xf0be51, roughness: 0.68 })
-			);
-			fry.rotation.z = (Math.random() - 0.5) * 0.7;
-			fry.rotation.x = (Math.random() - 0.5) * 0.35;
-			fry.position.set(
-				(Math.random() - 0.5) * 0.34,
-				0.22,
-				(Math.random() - 0.5) * 0.18
-			);
-			group.add(fry);
-		}
-		group.rotation.y = rot;
-		group.position.set(x, y, z);
 		scene.add(group);
-		return group;
-	};
+		lampLights.push(light);
+	});
 
-	const makePlate = (x: number, y: number, z: number) => {
-		const plate = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.38, 0.42, 0.045, 32),
-			new THREE.MeshStandardMaterial({
-				color: 0xfff2c8,
-				roughness: 0.42,
-				metalness: 0.03,
-			})
-		);
-		plate.position.set(x, y, z);
-		scene.add(plate);
-		return plate;
-	};
-
-	const makeDinerTable = (x: number, z: number, side: number) => {
-		const tabletop = roundedBox(1.55, 0.13, 0.98, 0xede4c4, 0.09, 0.28, 0.04);
-		tabletop.position.set(x, 1.0, z);
-		scene.add(tabletop);
-
-		const rim = new THREE.Mesh(
-			new THREE.TorusGeometry(0.66, 0.024, 8, 44),
-			new THREE.MeshStandardMaterial({
-				color: C.mustard,
-				roughness: 0.18,
-				metalness: 0.45,
-			})
-		);
-		rim.scale.z = 0.64;
-		rim.rotation.x = Math.PI / 2;
-		rim.position.set(x, 1.07, z);
-		scene.add(rim);
-
-		const stem = new THREE.Mesh(
-			new THREE.LatheGeometry(
-				[
-					new THREE.Vector2(0.08, -0.48),
-					new THREE.Vector2(0.05, -0.18),
-					new THREE.Vector2(0.075, 0.22),
-					new THREE.Vector2(0.05, 0.48),
-				],
-				24
-			),
-			new THREE.MeshStandardMaterial({
-				color: C.chrome,
-				roughness: 0.08,
-				metalness: 0.94,
-			})
-		);
-		stem.position.set(x, 0.5, z);
-		scene.add(stem);
-
-		const foot = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.36, 0.5, 0.08, 32),
-			new THREE.MeshStandardMaterial({
-				color: C.chrome,
-				roughness: 0.1,
-				metalness: 0.9,
-			})
-		);
-		foot.position.set(x, 0.045, z);
-		scene.add(foot);
-
-		const tableSlick = new THREE.Mesh(
-			new THREE.PlaneGeometry(0.72, 0.36),
-			new THREE.MeshStandardMaterial({
-				map: makeGreaseSlick(256, 128, "#7a2f05", 0.42),
-				transparent: true,
-				roughness: 0.05,
-				depthWrite: false,
-			})
-		);
-		tableSlick.rotation.x = -Math.PI / 2;
-		tableSlick.position.set(x + side * 0.08, 1.071, z - 0.08);
-		scene.add(tableSlick);
-
-		makePlate(x - side * 0.22, 1.115, z + 0.04);
-		loadGlbProp({
-			path: GREASY_ASSETS.food.cheeseburger,
-			x: x - side * 0.22,
-			y: 1.15,
-			z: z + 0.04,
-			scale: 0.42,
-			ry: side * 0.24,
-		});
-		makeFriesBasket(x + side * 0.18, 1.12, z - 0.08, side * 0.28);
-		loadGlbProp({
-			path: GREASY_ASSETS.food.soda,
-			x: x + side * 0.08,
-			y: 1.08,
-			z: z - 0.28,
-			scale: 0.24,
-			ry: side * 0.1,
-		});
-		loadGlbProp({
-			path: GREASY_ASSETS.food.bottle,
-			x: x + side * 0.42,
-			y: 1.08,
-			z: z + 0.24,
-			scale: 0.23,
-			ry: side * -0.2,
-		});
-		loadGlbProp({
-			path: GREASY_ASSETS.food.bottle,
-			x: x + side * 0.26,
-			y: 1.08,
-			z: z + 0.28,
-			scale: 0.2,
-			ry: side * 0.18,
-		});
-	};
-
-	const makeBooth = (wallX: number, z: number, side: number) => {
-		const back = roundedBox(0.34, 1.72, 3.35, C.redDark, 0.13, 0.58);
-		back.position.set(wallX, 1.55, z);
-		scene.add(back);
-		const seat = roundedBox(1.22, 0.34, 3.18, C.red, 0.12, 0.54);
-		seat.position.set(wallX - side * 0.48, 0.78, z);
-		scene.add(seat);
-		const toeKick = roundedBox(1.12, 0.22, 3.05, 0x130806, 0.06, 0.5, 0.1);
-		toeKick.position.set(wallX - side * 0.48, 0.33, z);
-		scene.add(toeKick);
-		for (let seam = -1.05; seam <= 1.05; seam += 0.7) {
-			const groove = box(0.045, 1.46, 0.035, 0x5b0909, 0.72);
-			groove.position.set(wallX - side * 0.18, 1.57, z + seam);
-			scene.add(groove);
-			const seatSeam = box(0.92, 0.025, 0.035, 0x8c1818, 0.72);
-			seatSeam.position.set(wallX - side * 0.48, 0.97, z + seam);
-			scene.add(seatSeam);
-		}
-		const topTrim = box(0.12, 0.09, 3.45, C.mustard, 0.18, 0.42);
-		topTrim.position.set(wallX - side * 0.19, 2.44, z);
-		scene.add(topTrim);
-		const sideCapA = roundedBox(1.16, 1.34, 0.13, C.redDark, 0.09, 0.58);
-		sideCapA.position.set(wallX - side * 0.48, 1.22, z - 1.66);
-		scene.add(sideCapA);
-		const sideCapB = roundedBox(1.16, 1.34, 0.13, C.redDark, 0.09, 0.58);
-		sideCapB.position.set(wallX - side * 0.48, 1.22, z + 1.66);
-		scene.add(sideCapB);
-		makeDinerTable(wallX - side * 1.72, z + 0.08, side);
-	};
-
-	makeBooth(-12.55, -3.15, -1);
-	makeBooth(12.55, -3.15, 1);
-
-	// ── JUKEBOX – pulled 1.5u away from back wall to prevent clip ──
-	const jbBody = roundedBox(1.15, 1.9, 0.7, 0x7a0000, 0.11, 0.32, 0.18);
-	jbBody.position.set(-11.5, 0.95, -9.8);
-	scene.add(jbBody);
-	const jbBase = roundedBox(1.28, 0.16, 0.82, 0x160705, 0.06, 0.42, 0.2);
-	jbBase.position.set(-11.5, 0.1, -9.8);
-	scene.add(jbBase);
-	const jbTrim = roundedBox(1.24, 0.08, 0.78, C.mustard, 0.04, 0.22, 0.36);
-	jbTrim.position.set(-11.5, 1.78, -9.8);
-	scene.add(jbTrim);
-	const jbDome = new THREE.Mesh(
-		new THREE.CylinderGeometry(0.58, 0.58, 0.56, 18, 1, false, 0, Math.PI),
-		new THREE.MeshStandardMaterial({
-			color: 0xaa2222,
-			roughness: 0.28,
-			metalness: 0.22,
-		})
-	);
-	jbDome.position.set(-11.5, 1.9, -9.8);
-	jbDome.rotation.z = Math.PI / 2;
-	scene.add(jbDome);
-	const jbSC = document.createElement("canvas");
-	jbSC.width = 256;
-	jbSC.height = 256;
-	const jsc = jbSC.getContext("2d")!;
-	const jg = jsc.createRadialGradient(128, 128, 8, 128, 128, 128);
-	jg.addColorStop(0, "#ffcc44");
-	jg.addColorStop(0.45, "#ff6600");
-	jg.addColorStop(1, "#330000");
-	jsc.fillStyle = jg;
-	jsc.fillRect(0, 0, 256, 256);
-	jsc.fillStyle = "rgba(255,220,100,0.9)";
-	jsc.font = "bold 44px sans-serif";
-	jsc.textAlign = "center";
-	jsc.fillText("♫", 128, 80);
-	jsc.font = "bold 28px Arial";
-	jsc.fillText("JUKEBOX", 128, 138);
-	jsc.fillText("LIVE", 128, 184);
-	const jbScreenTex = canvasTexture(jbSC);
-	const jbScreen = new THREE.Mesh(
-		new THREE.PlaneGeometry(0.72, 0.72),
-		new THREE.MeshStandardMaterial({
-			map: jbScreenTex,
-			emissive: 0xff6600,
-			emissiveMap: jbScreenTex,
-			emissiveIntensity: 1.9,
-			roughness: 1,
-		})
-	);
-	jbScreen.position.set(-10.88, 1.18, -9.8);
-	jbScreen.rotation.y = Math.PI / 2;
-	scene.add(jbScreen);
-	const jbGlow = new THREE.PointLight(0xff6600, 1.4, 3.8, 2);
-	jbGlow.position.set(-10.6, 1.2, -9.8);
-	scene.add(jbGlow);
+	buildDinerSeating({
+		scene,
+		C,
+		assets: GREASY_ASSETS,
+		box,
+		roundedBox,
+		makeGreaseSlick,
+		loadGlbProp,
+	});
+	const { glow: jbGlow } = buildJukebox({
+		scene,
+		C,
+		roundedBox,
+		canvasTexture,
+	});
 
 	// ── FRAMED POSTERS ───────────────────────────────
 	const makePoster = (
@@ -1905,12 +1534,13 @@ function buildScene(el: HTMLCanvasElement) {
 	// Posters pulled 0.04u off the wall face so they don't z-fight
 	makePoster(-13.82, 5.4, -5.5, Math.PI / 2, ["NO", "REFUNDS"], "#7a0000");
 	makePoster(-13.82, 5.4, -8.5, Math.PI / 2, ["GREASY", "SPECIAL"], "#1a4a22");
-	makePoster(13.82, 5.4, -5.5, -Math.PI / 2, ["EXTRA", "GREASY"], "#8b4000");
-	makePoster(13.82, 5.4, -8.5, -Math.PI / 2, ["OPEN", "LATE"], "#0a2558");
+	makePoster(13.82, 2.55, -5.2, -Math.PI / 2, ["EXTRA", "GREASY"], "#8b4000");
+	makePoster(13.82, 2.55, -9.15, -Math.PI / 2, ["OPEN", "LATE"], "#0a2558");
 
 	// ── ROOM PORTALS ─────────────────────────────────
 	const makeRoomDoor = ({
 		x,
+		y,
 		z,
 		ry,
 		title,
@@ -1918,6 +1548,7 @@ function buildScene(el: HTMLCanvasElement) {
 		accent,
 	}: {
 		x: number;
+		y: number;
 		z: number;
 		ry: number;
 		title: string;
@@ -1969,14 +1600,14 @@ function buildScene(el: HTMLCanvasElement) {
 		dctx.fillText(title, 256, 660);
 
 		const door = roundedBox(1.55, 2.45, 0.16, 0x170806, 0.06, 0.62, 0.08);
-		door.position.set(x, 1.52, z);
+		door.position.set(x, y, z);
 		door.rotation.y = ry;
 		scene.add(door);
 
 		const inset = roundedBox(1.24, 1.95, 0.08, 0x080504, 0.04, 0.5, 0.16);
 		inset.position.set(
 			x + Math.sin(ry) * 0.055,
-			1.55,
+			y + 0.03,
 			z + Math.cos(ry) * 0.055
 		);
 		inset.rotation.y = ry;
@@ -1995,20 +1626,24 @@ function buildScene(el: HTMLCanvasElement) {
 		);
 		doorSkin.position.set(
 			x + Math.sin(ry) * 0.102,
-			1.55,
+			y + 0.03,
 			z + Math.cos(ry) * 0.102
 		);
 		doorSkin.rotation.y = ry;
 		scene.add(doorSkin);
 
 		const trimTop = box(1.72, 0.09, 0.08, accent, 0.22, 0.42);
-		trimTop.position.set(x + Math.sin(ry) * 0.09, 2.8, z + Math.cos(ry) * 0.09);
+		trimTop.position.set(
+			x + Math.sin(ry) * 0.09,
+			y + 1.28,
+			z + Math.cos(ry) * 0.09
+		);
 		trimTop.rotation.y = ry;
 		scene.add(trimTop);
 		const trimBottom = box(1.72, 0.09, 0.08, accent, 0.22, 0.42);
 		trimBottom.position.set(
 			x + Math.sin(ry) * 0.09,
-			0.29,
+			y - 1.23,
 			z + Math.cos(ry) * 0.09
 		);
 		trimBottom.rotation.y = ry;
@@ -2044,40 +1679,43 @@ function buildScene(el: HTMLCanvasElement) {
 				emissiveIntensity: 0.38,
 			})
 		);
-		sign.position.set(x + Math.sin(ry) * 0.12, 3.1, z + Math.cos(ry) * 0.12);
+		sign.position.set(
+			x + Math.sin(ry) * 0.12,
+			y + 1.58,
+			z + Math.cos(ry) * 0.12
+		);
 		sign.rotation.y = ry;
 		scene.add(sign);
 
 		const glow = new THREE.PointLight(accent, 0.85, 3.2, 2);
-		glow.position.set(x + Math.sin(ry) * 0.55, 2.0, z + Math.cos(ry) * 0.55);
+		glow.position.set(
+			x + Math.sin(ry) * 0.55,
+			y + 0.48,
+			z + Math.cos(ry) * 0.55
+		);
 		scene.add(glow);
 		return { door, sign, glow };
 	};
+	const roomDoors = Object.fromEntries(
+		ROOM_DOORS.map(door => [door.key, door])
+	) as Record<(typeof ROOM_DOORS)[number]["key"], (typeof ROOM_DOORS)[number]>;
+	const makePlacedRoomDoor = (key: keyof typeof roomDoors) => {
+		const door = roomDoors[key];
+		return makeRoomDoor({
+			x: door.position.x,
+			y: door.position.y,
+			z: door.position.z,
+			ry: door.ry,
+			title: door.title,
+			subtitle: door.subtitle,
+			accent: door.accent,
+		});
+	};
 
-	const loreDoor = makeRoomDoor({
-		x: -13.78,
-		z: 2.0,
-		ry: Math.PI / 2,
-		title: "LORE HALL",
-		subtitle: "deep grease archive",
-		accent: C.red,
-	});
-	const fishDoor = makeRoomDoor({
-		x: 13.78,
-		z: 6.65,
-		ry: -Math.PI / 2,
-		title: "FISH FREEZER",
-		subtitle: "what's this?",
-		accent: C.teal,
-	});
-	const liveDoor = makeRoomDoor({
-		x: 13.78,
-		z: 1.15,
-		ry: -Math.PI / 2,
-		title: "LIVE ROOM",
-		subtitle: "screens stay on",
-		accent: C.neonBlue,
-	});
+	const loreDoor = makePlacedRoomDoor("loreRoom");
+	const fishDoor = makePlacedRoomDoor("fishRoom");
+	const liveDoor = makePlacedRoomDoor("liveRoom");
+	const kitchenDoor = makePlacedRoomDoor("kitchenRoom");
 
 	// ── ENTERABLE SIDE ROOMS ─────────────────────────
 	const makeRoomSign = (
@@ -2426,362 +2064,38 @@ function buildScene(el: HTMLCanvasElement) {
 		roomObjects[room] = created;
 	};
 
-	const buildLoreRoom = () => {
-		makeRoomShell({
-			cx: -21.8,
-			cz: 2.0,
-			w: 10.4,
-			d: 9.6,
-			accent: C.red,
-			title: "LORE HALL",
-		});
-		makeRoomDoor({
-			x: -16.72,
-			z: 2.0,
-			ry: -Math.PI / 2,
-			title: "DINER",
-			subtitle: "return",
-			accent: C.mustard,
-		});
-		makeRoomSign("EVENT ARCHIVE", C.red, -21.8, 3.15, 6.72, Math.PI, 3.2, 0.66);
-		makeLayeredRelief({
-			path: GREASY_ASSETS.lore.micmac,
-			x: -26.62,
-			y: 2.0,
-			z: 2.0,
-			w: 1.35,
-			h: 3.0,
-			ry: Math.PI / 2,
-			accent: C.red,
-			label: "MIC MAC",
-			layers: 2,
-		});
-		makeClipping(-22.0, 2.7, 6.72, Math.PI, "GREASYSMP EVENT ARCHIVE", [
-			"Server seasons, bad alliances,",
-			"and chat archaeology catalogued",
-			"behind the diner wall.",
-		]);
-		makeClipping(-19.8, 2.7, 6.72, Math.PI, "STREAMER CAMP INCIDENTS", [
-			"Filed under outdoor chaos,",
-			"unrecoverable clips, and",
-			"things best left laminated.",
-		]);
-		makeClipping(-24.2, 2.7, 6.72, Math.PI, "SUBATHON RECORDS", [
-			"Big Brother, TwitchPlays,",
-			"24 hour sessions, and",
-			"all remaining grease minutes.",
-		]);
-	};
+	const makeClipping = createClippingBuilder({
+		scene,
+		box,
+		canvasTexture,
+		textureMaterial,
+	});
+	buildMainLoreClippings(makeClipping);
 
-	const buildFishRoom = () => {
-		makeRoomShell({
-			cx: 21.8,
-			cz: 6.65,
-			w: 10.4,
-			d: 7.0,
-			accent: C.teal,
-			title: "FISH FREEZER",
-			variant: "freezer",
+	const { buildLoreRoom, buildFishRoom, buildLiveRoom, buildKitchenRoom } =
+		createSideRoomBuilders({
+			scene,
+			C,
+			assets: GREASY_ASSETS,
+			roundedBox,
+			textureMaterial,
+			loadAssetTexture,
+			makeGreaseSlick,
+			makeRoomShell,
+			makePlacedRoomDoor,
+			loadGlbProp,
+			makeRoomSign,
+			makeRoomScreen,
+			makeLayeredRelief,
+			makeClipping,
 		});
-		makeRoomDoor({
-			x: 16.72,
-			z: 6.65,
-			ry: Math.PI / 2,
-			title: "DINER",
-			subtitle: "return",
-			accent: C.mustard,
-		});
-		makeRoomSign(
-			"THE FISH",
-			C.teal,
-			26.72,
-			3.15,
-			6.65,
-			-Math.PI / 2,
-			2.6,
-			0.66
-		);
-		makeLayeredRelief({
-			path: GREASY_ASSETS.lore.whatsThisFish,
-			x: 26.62,
-			y: 2.05,
-			z: 6.65,
-			w: 2.8,
-			h: 1.75,
-			ry: -Math.PI / 2,
-			accent: C.teal,
-			label: "WHAT'S THIS? FISH",
-			layers: 2,
-		});
-		const fishPlinth = roundedBox(2.35, 0.85, 1.2, 0x07110f, 0.08, 0.42, 0.16);
-		fishPlinth.position.set(25.25, 0.45, 6.65);
-		scene.add(fishPlinth);
-		const fishCase = new THREE.Mesh(
-			new THREE.BoxGeometry(2.7, 1.15, 1.55),
-			new THREE.MeshStandardMaterial({
-				color: 0x89d8c8,
-				transparent: true,
-				opacity: 0.22,
-				roughness: 0.18,
-				metalness: 0.05,
-			})
-		);
-		fishCase.position.set(25.25, 1.55, 6.65);
-		scene.add(fishCase);
-		const freezerLight = new THREE.PointLight(0x89d8c8, 1.2, 5, 1.8);
-		freezerLight.position.set(24.4, 2.8, 6.65);
-		scene.add(freezerLight);
-		for (const shelfZ of [4.05, 8.35]) {
-			const shelf = roundedBox(3.2, 0.16, 0.32, 0x1f3d35, 0.035, 0.36, 0.28);
-			shelf.position.set(20.3, 1.55, shelfZ);
-			scene.add(shelf);
-			for (let i = 0; i < 4; i++) {
-				const jar = new THREE.Mesh(
-					new THREE.CylinderGeometry(0.12, 0.12, 0.48, 16),
-					new THREE.MeshStandardMaterial({
-						color: i % 2 ? 0xe8a946 : 0xfa4040,
-						roughness: 0.34,
-						metalness: 0.06,
-					})
-				);
-				jar.position.set(19.25 + i * 0.42, 1.88, shelfZ);
-				scene.add(jar);
-			}
-		}
-		const coldSlick = new THREE.Mesh(
-			new THREE.PlaneGeometry(4.4, 2.2),
-			new THREE.MeshStandardMaterial({
-				map: makeGreaseSlick(512, 192, "#0c6f6a", 0.28),
-				transparent: true,
-				roughness: 0.05,
-				metalness: 0.42,
-				depthWrite: false,
-			})
-		);
-		coldSlick.rotation.x = -Math.PI / 2;
-		coldSlick.position.set(23.6, 0.012, 6.65);
-		scene.add(coldSlick);
-	};
-
-	const buildLiveRoom = () => {
-		makeRoomShell({
-			cx: 21.8,
-			cz: -5.4,
-			w: 10.4,
-			d: 6.6,
-			accent: C.neonBlue,
-			title: "LIVE ROOM",
-		});
-		makeRoomDoor({
-			x: 16.72,
-			z: -5.4,
-			ry: Math.PI / 2,
-			title: "DINER",
-			subtitle: "return",
-			accent: C.mustard,
-		});
-		makeRoomSign(
-			"LIVE WALL",
-			C.neonBlue,
-			26.72,
-			3.15,
-			-5.4,
-			-Math.PI / 2,
-			2.8,
-			0.66
-		);
-		makeRoomScreen({
-			title: "TWITCH LIVE",
-			lines: ["STATUS: STANDBY", "CHAT FEED: READY", "SIGNAL: GREASY"],
-			x: 26.62,
-			y: 2.55,
-			z: -7.05,
-			ry: -Math.PI / 2,
-			w: 2.5,
-			h: 1.45,
-			accent: 0x7b3cff,
-		});
-		makeRoomScreen({
-			title: "WATCHTIME",
-			lines: ["TOP GREASE HOURS", "LEADERBOARD FEED", "SYNC IN PROGRESS"],
-			x: 26.62,
-			y: 2.55,
-			z: -5.4,
-			ry: -Math.PI / 2,
-			w: 2.5,
-			h: 1.45,
-			accent: C.neonBlue,
-		});
-		makeRoomScreen({
-			title: "ON AIR",
-			lines: ["MAC CAM", "CLIPS", "LOUD BITS"],
-			x: 26.62,
-			y: 2.55,
-			z: -3.75,
-			ry: -Math.PI / 2,
-			w: 2.5,
-			h: 1.45,
-			accent: C.red,
-		});
-		const liveDesk = roundedBox(3.8, 0.7, 1.4, 0x080403, 0.06, 0.48, 0.14);
-		liveDesk.position.set(22.0, 0.55, -5.4);
-		scene.add(liveDesk);
-		const mixer = roundedBox(1.7, 0.16, 0.82, 0x10151b, 0.04, 0.36, 0.12);
-		mixer.position.set(22.0, 1.02, -5.4);
-		scene.add(mixer);
-		for (let i = 0; i < 8; i++) {
-			const knob = new THREE.Mesh(
-				new THREE.CylinderGeometry(0.055, 0.055, 0.05, 14),
-				new THREE.MeshStandardMaterial({
-					color: i % 2 ? C.neonBlue : C.red,
-					emissive: i % 2 ? C.neonBlue : C.red,
-					emissiveIntensity: 0.7,
-					roughness: 0.32,
-				})
-			);
-			knob.position.set(
-				21.35 + (i % 4) * 0.42,
-				1.14,
-				-5.62 + Math.floor(i / 4) * 0.36
-			);
-			scene.add(knob);
-		}
-		const onAirLight = new THREE.PointLight(C.red, 1.4, 5, 1.7);
-		onAirLight.position.set(24.7, 2.5, -4.0);
-		scene.add(onAirLight);
-	};
-
-	// ── LORE NEWSPAPER CLIPPINGS (left wall) ─────────
-	const makeClipping = (
-		x: number,
-		y: number,
-		z: number,
-		ry: number,
-		headline: string,
-		body: string[]
-	) => {
-		const pC = document.createElement("canvas");
-		pC.width = 480;
-		pC.height = 560;
-		const ctx = pC.getContext("2d")!;
-		ctx.fillStyle = "#f5edcc";
-		ctx.fillRect(0, 0, 480, 560);
-		// aged paper texture
-		ctx.fillStyle = "rgba(180,140,60,0.12)";
-		ctx.fillRect(0, 0, 480, 560);
-		// headline rule
-		ctx.strokeStyle = "#1a0d06";
-		ctx.lineWidth = 3;
-		ctx.beginPath();
-		ctx.moveTo(18, 18);
-		ctx.lineTo(462, 18);
-		ctx.stroke();
-		ctx.beginPath();
-		ctx.moveTo(18, 22);
-		ctx.lineTo(462, 22);
-		ctx.stroke();
-		// masthead
-		ctx.fillStyle = "#1a0d06";
-		ctx.font = "bold 18px serif";
-		ctx.textAlign = "center";
-		ctx.fillText("THE GREASY GAZETTE  •  GREASYGANG EDITION", 240, 42);
-		ctx.beginPath();
-		ctx.moveTo(18, 50);
-		ctx.lineTo(462, 50);
-		ctx.stroke();
-		// headline
-		ctx.fillStyle = "#1a0d06";
-		ctx.font = "bold 38px serif";
-		ctx.textAlign = "center";
-		const words = headline.split(" ");
-		let line = "";
-		let lineY = 92;
-		for (const w of words) {
-			const test = line + w + " ";
-			if (ctx.measureText(test).width > 420 && line) {
-				ctx.fillText(line.trim(), 240, lineY);
-				line = w + " ";
-				lineY += 44;
-			} else line = test;
-		}
-		ctx.fillText(line.trim(), 240, lineY);
-		lineY += 16;
-		ctx.beginPath();
-		ctx.moveTo(18, lineY + 8);
-		ctx.lineTo(462, lineY + 8);
-		ctx.stroke();
-		lineY += 24;
-		// body
-		ctx.font = "15px serif";
-		ctx.textAlign = "left";
-		body.forEach(bLine => {
-			ctx.fillText(bLine, 22, lineY);
-			lineY += 22;
-		});
-		// fold marks
-		ctx.strokeStyle = "rgba(100,70,20,0.18)";
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		ctx.moveTo(0, 280);
-		ctx.lineTo(480, 280);
-		ctx.stroke();
-		const fr = box(1.6, 1.95, 0.04, 0x1a0d06, 0.8);
-		fr.position.set(x, y, z);
-		fr.rotation.y = ry;
-		scene.add(fr);
-		const pm = new THREE.Mesh(
-			new THREE.PlaneGeometry(1.5, 1.85),
-			textureMaterial(canvasTexture(pC), { roughness: 0.85 })
-		);
-		pm.position.set(x + Math.sin(ry) * 0.022, y, z + Math.cos(ry) * 0.022);
-		pm.rotation.y = ry;
-		scene.add(pm);
-	};
-	// Clippings pulled off left wall face
-	makeClipping(
-		-13.82,
-		3.5,
-		-3.5,
-		Math.PI / 2,
-		"40 DAY STREAM STREAK SHOCKS VIEWERS",
-		[
-			"Mac goes live every single day for",
-			"40 consecutive days, refusing to",
-			"stop for anything. Chat descends",
-			"into pure chaos by day 28.",
-			'"I cannot be stopped," he whispered.',
-			"Nobody believed him. He was right.",
-		]
-	);
-	makeClipping(-13.82, 3.5, -6.5, Math.PI / 2, "GREASYSMP SEASON 4 CONCLUDES", [
-		"After four legendary seasons of",
-		"the GreasySMP, the server closes",
-		"its doors. Drama, betrayal, and an",
-		"astronomical amount of dirt blocks.",
-		"GreasyCraft remains a cornerstone",
-		"of the GreasyGang experience.",
-	]);
-	makeClipping(
-		-13.82,
-		3.5,
-		-9.5,
-		Math.PI / 2,
-		"CLOWN WALKS: A CULTURAL RESET",
-		[
-			"Mac dons his clown suit and walks",
-			"through public spaces as chat",
-			"screams directions. Passersby",
-			"confused. Chat never happier.",
-			'"Wii in the Wild" spawns similarly.',
-			"Los Angeles has not recovered.",
-		]
-	);
 
 	ensureRoomLoaded = (room: RoomKey) => {
 		if (room === "main") return;
 		if (room === "lore") captureRoomBuild("lore", buildLoreRoom);
 		if (room === "fish") captureRoomBuild("fish", buildFishRoom);
 		if (room === "live") captureRoomBuild("live", buildLiveRoom);
+		if (room === "kitchen") captureRoomBuild("kitchen", buildKitchenRoom);
 	};
 	syncRoomVisibility = (room: RoomKey) => {
 		for (const [key, objects] of Object.entries(roomObjects) as [
@@ -2794,160 +2108,16 @@ function buildScene(el: HTMLCanvasElement) {
 		}
 	};
 
-	const runWhenIdle = (callback: () => void, timeout = 1400) => {
-		const idleWindow = window as Window & {
-			requestIdleCallback?: (
-				cb: IdleRequestCallback,
-				options?: IdleRequestOptions
-			) => number;
-		};
-		if (idleWindow.requestIdleCallback) {
-			idleWindow.requestIdleCallback(callback, { timeout });
-			return;
-		}
-		window.setTimeout(callback, timeout);
-	};
-	let didPreloadRooms = false;
-	const scheduleRoomPreload = () => {
-		if (didPreloadRooms) return;
-		didPreloadRooms = true;
-		(["lore", "fish", "live"] as RoomKey[]).forEach((room, index) => {
-			runWhenIdle(
-				() => {
-					window.setTimeout(() => ensureRoomLoaded?.(room), index * 220);
-				},
-				900 + index * 350
-			);
-		});
-	};
-
-	// ── WIKI LORE PLAQUES + SHELF PROPS (side walls) ──
-	const makeLorePlaque = (
-		x: number,
-		y: number,
-		z: number,
-		ry: number,
-		title: string,
-		lines: string[],
-		accent: string
-	) => {
-		const pC = document.createElement("canvas");
-		pC.width = 720;
-		pC.height = 420;
-		const ctx = pC.getContext("2d")!;
-		ctx.fillStyle = "#130806";
-		ctx.fillRect(0, 0, 720, 420);
-		setCanvasNoise(ctx, 720, 420, 0.14);
-		ctx.fillStyle = accent;
-		ctx.fillRect(0, 0, 720, 18);
-		ctx.fillRect(0, 402, 720, 18);
-		ctx.strokeStyle = "#e8a946";
-		ctx.lineWidth = 7;
-		ctx.strokeRect(16, 16, 688, 388);
-		ctx.strokeStyle = "rgba(255,242,200,0.25)";
-		ctx.lineWidth = 2;
-		ctx.strokeRect(34, 34, 652, 352);
-		ctx.fillStyle = accent;
-		ctx.font = "bold 56px 'Arial Black', Impact, sans-serif";
-		ctx.textAlign = "center";
-		ctx.fillText(title, 360, 92);
-		ctx.fillStyle = "#fff2c8";
-		ctx.font = "bold 29px Arial, sans-serif";
-		lines.forEach((line, i) => ctx.fillText(line, 360, 168 + i * 50));
-		ctx.fillStyle = "rgba(255,242,200,0.35)";
-		ctx.font = "italic 22px serif";
-		ctx.fillText("from the GreasyMac wiki wall", 360, 365);
-
-		const frame = box(2.7, 1.55, 0.07, 0x100604, 0.7, 0.12);
-		frame.rotation.y = ry;
-		frame.position.set(x, y, z);
-		scene.add(frame);
-		const plaque = new THREE.Mesh(
-			new THREE.PlaneGeometry(2.5, 1.35),
-			textureMaterial(canvasTexture(pC), {
-				roughness: 0.82,
-				emissive: new THREE.Color(accent).getHex(),
-				emissiveIntensity: 0.07,
-			})
-		);
-		plaque.rotation.y = ry;
-		plaque.position.set(x + Math.sin(ry) * 0.035, y, z + Math.cos(ry) * 0.035);
-		scene.add(plaque);
-	};
-
-	const makeLoreShelf = (
-		x: number,
-		z: number,
-		ry: number,
-		accent: number,
-		prop: "remote" | "nose"
-	) => {
-		const shelf = roundedBox(0.12, 0.16, 2.3, 0x2a1409, 0.04, 0.52, 0.1);
-		shelf.position.set(x, 2.15, z);
-		shelf.rotation.y = ry;
-		scene.add(shelf);
-		if (prop === "remote") {
-			const remote = roundedBox(0.18, 0.12, 0.78, 0xf4f4ed, 0.045, 0.38);
-			remote.rotation.y = ry;
-			remote.position.set(x + Math.sin(ry) * 0.16, 2.42, z);
-			scene.add(remote);
-			for (let i = 0; i < 4; i++) {
-				const btn = new THREE.Mesh(
-					new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14),
-					new THREE.MeshStandardMaterial({ color: i === 0 ? C.red : 0x222222 })
-				);
-				btn.rotation.x = Math.PI / 2;
-				btn.position.set(x + Math.sin(ry) * 0.23, 2.5, z - 0.22 + i * 0.12);
-				scene.add(btn);
-			}
-		}
-		if (prop === "nose") {
-			const nose = new THREE.Mesh(
-				new THREE.SphereGeometry(0.2, 24, 16),
-				new THREE.MeshStandardMaterial({
-					color: C.red,
-					roughness: 0.22,
-					metalness: 0.05,
-					emissive: C.red,
-					emissiveIntensity: 0.18,
-				})
-			);
-			nose.position.set(x + Math.sin(ry) * 0.18, 2.42, z);
-			scene.add(nose);
-		}
-	};
-
-	makeLorePlaque(
-		-13.78,
-		5.15,
-		4.65,
-		Math.PI / 2,
-		"WII IN THE WILD",
-		["field reports from", "the public-chaos archive", "chat remains liable"],
-		"#e8a946"
-	);
-	makeLoreShelf(-13.68, 4.95, Math.PI / 2, C.red, "remote");
-	makeLorePlaque(
-		-13.78,
-		3.15,
-		1.3,
-		Math.PI / 2,
-		"CLOWN CONFESSIONALS",
-		["private booth stories", "from the grease era", "no refunds on truth"],
-		"#fa4040"
-	);
-	makeLoreShelf(-13.68, 2.9, Math.PI / 2, C.red, "nose");
-	const maclingRelief = makeLayeredRelief({
-		path: GREASY_ASSETS.lore.ggFatArt,
-		x: 13.72,
-		y: 3.0,
-		z: -2.15,
-		w: 0.72,
-		h: 0.74,
-		ry: -Math.PI / 2,
-		accent: C.mustard,
-		label: "MACLING",
-		layers: 2,
+	const { maclingRelief } = buildSideLoreWalls({
+		scene,
+		C,
+		assets: GREASY_ASSETS,
+		box,
+		roundedBox,
+		canvasTexture,
+		textureMaterial,
+		setCanvasNoise,
+		makeLayeredRelief,
 	});
 
 	// ── LORE BOARD: Wall of Fame (right wall upper) ──
@@ -3005,30 +2175,40 @@ function buildScene(el: HTMLCanvasElement) {
 		ctx2.textAlign = "center";
 		ctx2.fillText('"variety streamer. los angeles. extra greasy."', 450, 610);
 		// Wall of fame lives in the rear-right corner, clear of the TV bank.
-		const fr2 = box(4.9, 3.65, 0.1, 0x0a0604, 0.8);
-		fr2.rotation.y = -Math.PI / 2;
-		fr2.position.set(13.84, 4.35, -9.3);
-		scene.add(fr2);
+		const group = new THREE.Group();
+		group.name = "wall-of-legends";
+		group.userData.label = "Wall of Legends";
+		group.rotation.y = -Math.PI / 2;
+		group.position.set(13.84, 4.7, -9.85);
+		scene.add(group);
+
+		const fr2 = box(3.75, 2.95, 0.1, 0x0a0604, 0.8);
+		fr2.name = "frame";
+		group.add(fr2);
+
 		const boardTex = canvasTexture(wC2);
 		const board = new THREE.Mesh(
-			new THREE.PlaneGeometry(4.55, 3.35),
+			new THREE.PlaneGeometry(3.45, 2.65),
 			textureMaterial(boardTex, {
 				roughness: 0.88,
 				emissive: 0x0a0604,
 				emissiveIntensity: 0.3,
 			})
 		);
-		board.rotation.y = -Math.PI / 2;
-		board.position.set(13.76, 4.35, -9.3);
-		scene.add(board);
+		board.name = "board";
+		board.position.z = 0.08;
+		group.add(board);
+
 		const boardLight = new THREE.PointLight(0xe8a946, 1.2, 6, 1.8);
-		boardLight.position.set(12.0, 4.35, -9.3);
-		scene.add(boardLight);
+		boardLight.name = "glow";
+		boardLight.position.z = 1.84;
+		group.add(boardLight);
 	};
 	makeWallOfFame();
 
 	// ── ORDER RAIL (above counter) ──
 	const makeChalky = () => {
+		const boardX = 2.4;
 		const cC = document.createElement("canvas");
 		cC.width = 1024;
 		cC.height = 250;
@@ -3084,7 +2264,7 @@ function buildScene(el: HTMLCanvasElement) {
 		});
 		const tex = canvasTexture(cC);
 		const cfr = box(8.3, 1.34, 0.08, 0x25120e, 0.72);
-		cfr.position.set(0, 2.25, -11.35);
+		cfr.position.set(boardX, 2.25, -11.35);
 		scene.add(cfr);
 		const cboard = new THREE.Mesh(
 			new THREE.PlaneGeometry(8.0, 1.16),
@@ -3096,7 +2276,7 @@ function buildScene(el: HTMLCanvasElement) {
 				emissiveIntensity: 0.08,
 			})
 		);
-		cboard.position.set(0, 2.25, -11.28);
+		cboard.position.set(boardX, 2.25, -11.28);
 		scene.add(cboard);
 	};
 	makeChalky();
@@ -3174,9 +2354,9 @@ function buildScene(el: HTMLCanvasElement) {
 		scene.add(sm);
 	};
 	// Signs hanging from ceiling pointing to each zone
-	makeHangingSign(0, -3.2, 0, "MENU", "▼", 0xe8a946);
-	makeHangingSign(-5.0, -1.8, Math.PI * 0.1, "ABOUT", "◄", 0xcc2828);
-	makeHangingSign(6.25, -1.65, -Math.PI * 0.1, "LEADERBOARD", "►", 0x2255cc);
+	HANGING_SIGNS.forEach(sign => {
+		makeHangingSign(sign.x, sign.z, sign.ry, sign.text, sign.arrow, sign.color);
+	});
 
 	// ── IN-WORLD TV CABINETS (right wall, no DOM overlays) ──────
 	const liveScreens: {
@@ -3243,8 +2423,9 @@ function buildScene(el: HTMLCanvasElement) {
 		liveScreens.push({ ctx: tvCtx, texture: tvTex, mode });
 		return tvGlow;
 	};
-	const tv1Glow = makeTV(-6.15, "twitch", 0x6444ff);
-	const tv2Glow = makeTV(-2.05, "leaderboard", 0x4488ff);
+	const rightWallTVGlows = Object.fromEntries(
+		RIGHT_WALL_TVS.map(tv => [tv.key, makeTV(tv.z, tv.key, tv.accent)])
+	) as Record<(typeof RIGHT_WALL_TVS)[number]["key"], THREE.PointLight>;
 	const renderLiveScreen = (
 		screen: (typeof liveScreens)[number],
 		time: number,
@@ -3390,34 +2571,11 @@ function buildScene(el: HTMLCanvasElement) {
 			[3.0, -7.2],
 		] as [number, number][]
 	).forEach(([px, pz]) => {
-		const pC = document.createElement("canvas");
-		pC.width = 256;
-		pC.height = 128;
-		const pctx = pC.getContext("2d")!;
-		const pg = pctx.createRadialGradient(128, 64, 4, 128, 64, 92);
-		pg.addColorStop(0, "rgba(200,145,50,0.55)");
-		pg.addColorStop(0.5, "rgba(130,90,22,0.22)");
-		pg.addColorStop(1, "rgba(0,0,0,0)");
-		pctx.fillStyle = pg;
-		pctx.ellipse(128, 64, 112, 56, 0.3, 0, Math.PI * 2);
-		pctx.fill();
-		const pm = new THREE.Mesh(
-			new THREE.PlaneGeometry(2.8, 1.4),
-			new THREE.MeshStandardMaterial({
-				map: canvasTexture(pC),
-				transparent: true,
-				roughness: 0.08,
-				metalness: 0.55,
-				depthWrite: false,
-			})
-		);
-		pm.rotation.x = -Math.PI / 2;
-		pm.position.set(px, 0.005, pz);
-		scene.add(pm);
+		createGreasePuddle({ scene, canvasTexture }, px, pz);
 	});
 
 	// steam
-	const STEAM = 50;
+	const STEAM = 32;
 	const sPos = new Float32Array(STEAM * 3);
 	const sPhase = new Float32Array(STEAM);
 	for (let i = 0; i < STEAM; i++) {
@@ -3463,8 +2621,6 @@ function buildScene(el: HTMLCanvasElement) {
 	);
 	counterWash.position.set(0, 6.8, -3.4);
 	counterWash.target.position.set(0, 1.1, -8.6);
-	counterWash.castShadow = true;
-	counterWash.shadow.mapSize.set(512, 512);
 	scene.add(counterWash);
 	scene.add(counterWash.target);
 	const entryWash = new THREE.PointLight(0xff9f55, 1.35, 12, 1.7);
@@ -3547,6 +2703,7 @@ function buildScene(el: HTMLCanvasElement) {
 	// Mouse move: look when locked, update cursor hover when unlocked
 	const mouseNDC = new THREE.Vector2();
 	const onMouseMove = (e: MouseEvent) => {
+		if (isDinerDevEditing) return;
 		if (locked) {
 			euler.y -= e.movementX * 0.0018;
 			euler.x -= e.movementY * 0.0018;
@@ -3569,6 +2726,18 @@ function buildScene(el: HTMLCanvasElement) {
 	};
 
 	const onKeyDown = (e: KeyboardEvent) => {
+		if (import.meta.dev && isDevEditorToggleKey(e)) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			pendingDevEditorOpen = !isDinerDevEditing;
+			devEditor?.toggle(pendingDevEditorOpen);
+			return;
+		}
+		if (isDinerDevEditing) {
+			keys[e.code] = false;
+			if (e.code === "Escape" && activeSection.value !== "none") closeSection();
+			return;
+		}
 		keys[e.code] = true;
 		if (e.code === "KeyE") handleInteract();
 		if (e.code === "Escape" && activeSection.value !== "none") closeSection();
@@ -3580,6 +2749,7 @@ function buildScene(el: HTMLCanvasElement) {
 	// clicking canvas: raycasting for social buttons OR pointer lock
 	const onCanvasClick = (e: MouseEvent) => {
 		if (!isSceneReady.value) return;
+		if (isDinerDevEditing) return;
 		void ensureAudio();
 		if (activeSection.value !== "none") return;
 		if (locked) {
@@ -3607,6 +2777,28 @@ function buildScene(el: HTMLCanvasElement) {
 	document.addEventListener("mousemove", onMouseMove);
 	document.addEventListener("keydown", onKeyDown);
 	document.addEventListener("keyup", onKeyUp);
+
+	if (import.meta.dev) {
+		void import("./greasy-diner/dev/editor").then(
+			({ createDinerDevEditor }) => {
+				if (!renderer) return;
+				devEditor = createDinerDevEditor({
+					scene,
+					camera,
+					renderer,
+					canvas: el,
+					objects: DINER_OBJECTS,
+					getRoom: () => currentRoom.value,
+					onEditingChange: editing => {
+						isDinerDevEditing = editing;
+						if (editing && document.pointerLockElement === el)
+							document.exitPointerLock();
+					},
+				});
+				if (pendingDevEditorOpen) devEditor.toggle(true);
+			}
+		);
+	}
 
 	// ── RENDER LOOP ───────────────────────────────────
 	const clock = new THREE.Clock();
@@ -3644,7 +2836,12 @@ function buildScene(el: HTMLCanvasElement) {
 		const t = tick * 0.005;
 
 		// walking (only when locked AND no panel open)
-		if (locked && activeSection.value === "none" && !isTeleporting.value) {
+		if (
+			locked &&
+			activeSection.value === "none" &&
+			!isTeleporting.value &&
+			!isDinerDevEditing
+		) {
 			dir.set(0, 0, 0);
 			if (keys["KeyW"] || keys["ArrowUp"]) dir.z = -1;
 			if (keys["KeyS"] || keys["ArrowDown"]) dir.z = 1;
@@ -3680,7 +2877,8 @@ function buildScene(el: HTMLCanvasElement) {
 			}
 		}
 		nearZone.value = closest;
-		if (locked && activeSection.value === "none") updateFocusedLink();
+		if (locked && activeSection.value === "none" && !isDinerDevEditing)
+			updateFocusedLink();
 		else {
 			focusedLink.value = null;
 			focusedLinkLabel.value = null;
@@ -3693,35 +2891,38 @@ function buildScene(el: HTMLCanvasElement) {
 		const inLore = nearest("loreRoom");
 		const inFishRoom = nearest("fishRoom");
 		const inLiveRoom = nearest("liveRoom");
+		const inKitchenRoom = nearest("kitchenRoom");
 		function nearest(k: ZoneKey) {
 			return nearZone.value === k;
 		}
 		const gp = 0.55 + Math.sin(t * 3.5) * 0.35;
-		(menuGlow.material as THREE.MeshStandardMaterial).opacity = inMenu
+		(zoneGlows.menu.material as THREE.MeshStandardMaterial).opacity = inMenu
 			? gp
 			: 0.22;
-		(aboutGlow.material as THREE.MeshStandardMaterial).opacity = inAbout
+		(zoneGlows.about.material as THREE.MeshStandardMaterial).opacity = inAbout
 			? gp
 			: 0.22;
-		(lbGlow.material as THREE.MeshStandardMaterial).opacity = inLB ? gp : 0.22;
-		(jukeboxGlow.material as THREE.MeshStandardMaterial).opacity = inJukebox
-			? gp
-			: 0.2;
-		(loreGlow.material as THREE.MeshStandardMaterial).opacity = inLore
-			? gp
-			: 0.18;
-		(fishRoomGlow.material as THREE.MeshStandardMaterial).opacity = inFishRoom
+		(zoneGlows.leaderboard.material as THREE.MeshStandardMaterial).opacity =
+			inLB ? gp : 0.22;
+		(zoneGlows.jukebox.material as THREE.MeshStandardMaterial).opacity =
+			inJukebox ? gp : 0.2;
+		(zoneGlows.loreRoom.material as THREE.MeshStandardMaterial).opacity = inLore
 			? gp
 			: 0.18;
-		(liveRoomGlow.material as THREE.MeshStandardMaterial).opacity = inLiveRoom
-			? gp
-			: 0.18;
+		(zoneGlows.fishRoom.material as THREE.MeshStandardMaterial).opacity =
+			inFishRoom ? gp : 0.18;
+		(zoneGlows.liveRoom.material as THREE.MeshStandardMaterial).opacity =
+			inLiveRoom ? gp : 0.18;
+		(zoneGlows.kitchenRoom.material as THREE.MeshStandardMaterial).opacity =
+			inKitchenRoom ? gp : 0.18;
 
 		loreDoor.glow.intensity = (inLore ? 1.25 : 0.52) + Math.sin(t * 2.4) * 0.12;
 		fishDoor.glow.intensity =
 			(inFishRoom ? 1.3 : 0.56) + Math.sin(t * 2.1 + 1.4) * 0.12;
 		liveDoor.glow.intensity =
 			(inLiveRoom ? 1.35 : 0.58) + Math.sin(t * 2.8 + 0.6) * 0.14;
+		kitchenDoor.glow.intensity =
+			(inKitchenRoom ? 1.25 : 0.52) + Math.sin(t * 2.3 + 0.9) * 0.12;
 
 		// neon flicker
 		const neonDrop = tick % 283 === 0 ? -1.35 : 0;
@@ -3745,27 +2946,94 @@ function buildScene(el: HTMLCanvasElement) {
 			0.22 + Math.sin(t * 3.2) * 0.07;
 		maclingRelief.position.y = 3.0 + Math.sin(t * 1.7) * 0.012;
 		maclingRelief.rotation.y = -Math.PI / 2 + Math.sin(t * 1.15) * 0.012;
-		tv1Glow.intensity = 0.5 + Math.sin(t * 0.8) * 0.2;
-		tv2Glow.intensity = 0.5 + Math.sin(t * 0.9 + 1) * 0.2;
-		if (tick % 10 === 0) {
+		const kitchenMacRig = scene.getObjectByName("kitchen-mac-cook-rig") as
+			| THREE.Group
+			| undefined;
+		if (kitchenMacRig) {
+			const dx = camera.position.x - kitchenMacRig.position.x;
+			const dz = camera.position.z - kitchenMacRig.position.z;
+			kitchenMacRig.rotation.y = Math.atan2(dx, dz);
+			const parts = kitchenMacRig.userData.parts as
+				| {
+						head?: THREE.Object3D;
+						spatulaArm?: THREE.Object3D;
+						gestureArm?: THREE.Object3D;
+						steam?: THREE.Object3D;
+				  }
+				| undefined;
+			if (parts?.head) {
+				parts.head.rotation.z = Math.sin(t * 1.7) * 0.018;
+				const head = parts.head as THREE.Mesh<
+					THREE.PlaneGeometry,
+					THREE.MeshBasicMaterial
+				>;
+				const expressionTextures = head.userData.expressionTextures as
+					| Record<string, THREE.Texture>
+					| undefined;
+				if (expressionTextures) {
+					const talkFrames = ["talkSmall", "talkWide", "talkSmall"];
+					const idleFrames = [
+						"neutralOpen",
+						"neutralOpen",
+						"suspicious",
+						"smug",
+						"laughing",
+						"neutralOpen",
+						"shocked",
+						"clownReaction",
+					];
+					const isTalking = Math.floor(t / 5) % 2 === 0;
+					const expressionKey = isTalking
+						? talkFrames[Math.floor(t * 7) % talkFrames.length]
+						: idleFrames[Math.floor(t / 2.2) % idleFrames.length];
+					const nextTexture = expressionTextures[expressionKey];
+					if (nextTexture && head.userData.expressionKey !== expressionKey) {
+						head.material.map = nextTexture;
+						head.material.needsUpdate = true;
+						head.userData.expressionKey = expressionKey;
+					}
+				}
+			}
+			if (parts?.spatulaArm) {
+				parts.spatulaArm.rotation.z = -0.34 + Math.sin(t * 3.6) * 0.11;
+				parts.spatulaArm.position.y = 2.02 + Math.sin(t * 3.6 + 0.4) * 0.025;
+			}
+			if (parts?.gestureArm) {
+				parts.gestureArm.rotation.z = 0.22 + Math.sin(t * 2.2 + 1.2) * 0.045;
+			}
+			if (parts?.steam) {
+				parts.steam.position.y = 1.05 + Math.sin(t * 1.8) * 0.03;
+				parts.steam.children.forEach((child, index) => {
+					child.position.y = index * 0.08 + ((t * 0.28 + index * 0.19) % 0.32);
+					child.rotation.z =
+						(index - 1) * 0.18 + Math.sin(t * 2 + index) * 0.08;
+				});
+			}
+		}
+		rightWallTVGlows.twitch.intensity = 0.5 + Math.sin(t * 0.8) * 0.2;
+		rightWallTVGlows.leaderboard.intensity = 0.5 + Math.sin(t * 0.9 + 1) * 0.2;
+		if (tick % 18 === 0) {
 			liveScreens.forEach(screen => renderLiveScreen(screen, t, tick));
 		}
 		rimLight.intensity = 2.0 + Math.sin(t * 0.9) * 0.4;
 
 		// steam
 		const sp = steam.geometry.attributes.position.array as Float32Array;
-		for (let i = 0; i < STEAM; i++) {
-			sp[i * 3 + 1] += 0.009 + Math.sin(sPhase[i] + t) * 0.003;
-			sp[i * 3] += Math.sin(sPhase[i] * 2 + t * 0.5) * 0.003;
-			if (sp[i * 3 + 1] > 4.2) {
-				sp[i * 3 + 1] = 1.15;
-				sp[i * 3] = (Math.random() - 0.5) * 10;
+		if (tick % 2 === 0) {
+			for (let i = 0; i < STEAM; i++) {
+				sp[i * 3 + 1] += 0.018 + Math.sin(sPhase[i] + t) * 0.006;
+				sp[i * 3] += Math.sin(sPhase[i] * 2 + t * 0.5) * 0.006;
+				if (sp[i * 3 + 1] > 4.2) {
+					sp[i * 3 + 1] = 1.15;
+					sp[i * 3] = (Math.random() - 0.5) * 10;
+				}
 			}
+			steam.geometry.attributes.position.needsUpdate = true;
 		}
-		steam.geometry.attributes.position.needsUpdate = true;
 		steamMat.opacity = 0.14 + Math.sin(t * 0.7) * 0.04;
 
 		if (tick % 3 === 0) syncSpatialAudio();
+		devEditor?.update();
 		renderer!.render(scene, camera);
 		if (!markedSceneReady) {
 			markedSceneReady = true;
@@ -3777,7 +3045,6 @@ function buildScene(el: HTMLCanvasElement) {
 			readyTimeout = window.setTimeout(() => {
 				finishLoadingProgress(() => {
 					isSceneReady.value = true;
-					scheduleRoomPreload();
 				});
 			}, remaining);
 		}
@@ -3819,6 +3086,10 @@ function buildScene(el: HTMLCanvasElement) {
 			freezerGain.gain.setValueAtTime(0, audioContext.currentTime);
 		}
 		if (readyTimeout) window.clearTimeout(readyTimeout);
+		devEditor?.dispose();
+		devEditor = null;
+		isDinerDevEditing = false;
+		pendingDevEditorOpen = false;
 		document.removeEventListener("pointerlockchange", onLockChange);
 		document.removeEventListener("mousemove", onMouseMove);
 		document.removeEventListener("keydown", onKeyDown);
