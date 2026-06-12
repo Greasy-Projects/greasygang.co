@@ -15,6 +15,7 @@
 		"lint:ci": "eslint . &&  prettier --cache --check ."
 	},
 	"devDependencies": {
+		"@gltf-transform/cli": "^4.4.0",
 		"@nuxt/content": "^3.14.0",
 		"@nuxt/eslint-config": "^0.2.0",
 		"@nuxt/fonts": "^0.14.0",
@@ -24,9 +25,11 @@
 		"@unocss/nuxt": "^66.7.0",
 		"eslint": "^8.57.0",
 		"eslint-config-prettier": "^9.1.0",
+		"fbx2gltf": "0.9.7-p1",
 		"graphql": "16.14.1",
 		"nuxt": "^3.10.3",
 		"nuxt-graphql-client": "^0.2.33",
+		"obj2gltf": "^3.2.0",
 		"prettier": "^3.2.5",
 		"tsx": "^4.7.1",
 		"vue": "^3.4.21",
