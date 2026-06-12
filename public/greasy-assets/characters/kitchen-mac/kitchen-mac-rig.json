@@ -1,0 +1,150 @@
+{
+  "source": "ig_0aaeba2aba50d5ed016a284c25fce48191a256eb975ea0757e.png",
+  "sourceSize": {
+    "w": 1536,
+    "h": 1024
+  },
+  "usage": "Billboard/plane rig parts for kitchen Mac. Use metadata offsets to reassemble relative to the original generated sheet.",
+  "parts": {
+    "body": {
+      "file": "kitchen-mac-body.png",
+      "sourceRect": {
+        "x": 45,
+        "y": 55,
+        "w": 360,
+        "h": 920
+      },
+      "trimRect": {
+        "x": 68,
+        "y": 30,
+        "w": 292,
+        "h": 870
+      },
+      "sheetPosition": {
+        "x": 113,
+        "y": 85
+      },
+      "pivotInSourceRect": {
+        "x": 230,
+        "y": 210
+      },
+      "pivotInTrimmedImage": {
+        "x": 162,
+        "y": 180
+      },
+      "note": "Headless torso/legs/apron. Anchor head near pivot."
+    },
+    "head": {
+      "file": "kitchen-mac-head.png",
+      "sourceRect": {
+        "x": 570,
+        "y": 0,
+        "w": 405,
+        "h": 500
+      },
+      "trimRect": {
+        "x": 29,
+        "y": 13,
+        "w": 337,
+        "h": 454
+      },
+      "sheetPosition": {
+        "x": 599,
+        "y": 13
+      },
+      "pivotInSourceRect": {
+        "x": 205,
+        "y": 395
+      },
+      "pivotInTrimmedImage": {
+        "x": 176,
+        "y": 382
+      },
+      "note": "Head/neck facing camera. Pivot at neck base."
+    },
+    "arm-spatula": {
+      "file": "kitchen-mac-arm-spatula.png",
+      "sourceRect": {
+        "x": 420,
+        "y": 500,
+        "w": 375,
+        "h": 430
+      },
+      "trimRect": {
+        "x": 0,
+        "y": 10,
+        "w": 375,
+        "h": 417
+      },
+      "sheetPosition": {
+        "x": 420,
+        "y": 510
+      },
+      "pivotInSourceRect": {
+        "x": 35,
+        "y": 95
+      },
+      "pivotInTrimmedImage": {
+        "x": 35,
+        "y": 85
+      },
+      "note": "Cooking arm with spatula. Pivot at shoulder."
+    },
+    "arm-gesture": {
+      "file": "kitchen-mac-arm-gesture.png",
+      "sourceRect": {
+        "x": 915,
+        "y": 545,
+        "w": 400,
+        "h": 335
+      },
+      "trimRect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 335
+      },
+      "sheetPosition": {
+        "x": 915,
+        "y": 545
+      },
+      "pivotInSourceRect": {
+        "x": 50,
+        "y": 60
+      },
+      "pivotInTrimmedImage": {
+        "x": 50,
+        "y": 60
+      },
+      "note": "Gesture arm/hand. Pivot at shoulder."
+    },
+    "assembled-preview": {
+      "file": "kitchen-mac-assembled-preview.png",
+      "sourceRect": {
+        "x": 1085,
+        "y": 10,
+        "w": 365,
+        "h": 625
+      },
+      "trimRect": {
+        "x": 7,
+        "y": 0,
+        "w": 358,
+        "h": 622
+      },
+      "sheetPosition": {
+        "x": 1092,
+        "y": 10
+      },
+      "pivotInSourceRect": {
+        "x": 185,
+        "y": 170
+      },
+      "pivotInTrimmedImage": {
+        "x": 178,
+        "y": 170
+      },
+      "note": "Preview/reference only; not for the rig."
+    }
+  }
+}
