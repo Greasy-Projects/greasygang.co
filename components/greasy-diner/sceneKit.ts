@@ -33,6 +33,42 @@ export function createSceneKit({
 	loadingManager,
 	palette: C,
 }: SceneKitOptions) {
+	const geometryCache = new Map<string, THREE.BufferGeometry>();
+	const materialCache = new Map<string, THREE.MeshStandardMaterial>();
+	const roundedGeometryCache = new Map<string, RoundedBoxGeometry>();
+
+	const getBoxGeometry = (w: number, h: number, d: number) => {
+		const key = `${w}:${h}:${d}`;
+		let geometry = geometryCache.get(key);
+		if (!geometry) {
+			geometry = new THREE.BoxGeometry(w, h, d);
+			geometryCache.set(key, geometry);
+		}
+		return geometry;
+	};
+
+	const getStandardMaterial = (
+		color: number,
+		rough = 0.6,
+		metal = 0,
+		ei = 0,
+		ec = 0x000000
+	) => {
+		const key = `${color}:${rough}:${metal}:${ei}:${ec}`;
+		let material = materialCache.get(key);
+		if (!material) {
+			material = new THREE.MeshStandardMaterial({
+				color,
+				roughness: rough,
+				metalness: metal,
+				emissive: ec,
+				emissiveIntensity: ei,
+			});
+			materialCache.set(key, material);
+		}
+		return material;
+	};
+
 	const box = (
 		w: number,
 		h: number,
@@ -44,14 +80,8 @@ export function createSceneKit({
 		ec = 0x000000
 	) => {
 		const m = new THREE.Mesh(
-			new THREE.BoxGeometry(w, h, d),
-			new THREE.MeshStandardMaterial({
-				color,
-				roughness: rough,
-				metalness: metal,
-				emissive: ec,
-				emissiveIntensity: ei,
-			})
+			getBoxGeometry(w, h, d),
+			getStandardMaterial(color, rough, metal, ei, ec)
 		);
 		m.castShadow = true;
 		m.receiveShadow = true;
@@ -67,13 +97,15 @@ export function createSceneKit({
 		rough = 0.55,
 		metal = 0
 	) => {
+		const geometryKey = `${w}:${h}:${d}:${radius}`;
+		let geometry = roundedGeometryCache.get(geometryKey);
+		if (!geometry) {
+			geometry = new RoundedBoxGeometry(w, h, d, 3, radius);
+			roundedGeometryCache.set(geometryKey, geometry);
+		}
 		const m = new THREE.Mesh(
-			new RoundedBoxGeometry(w, h, d, 3, radius),
-			new THREE.MeshStandardMaterial({
-				color,
-				roughness: rough,
-				metalness: metal,
-			})
+			geometry,
+			getStandardMaterial(color, rough, metal)
 		);
 		m.castShadow = true;
 		m.receiveShadow = true;
@@ -194,6 +226,7 @@ export function createSceneKit({
 		rx = 0,
 		rz = 0,
 		tint,
+		castShadow = false,
 	}: {
 		path: string;
 		x: number;
@@ -204,6 +237,7 @@ export function createSceneKit({
 		rx?: number;
 		rz?: number;
 		tint?: number;
+		castShadow?: boolean;
 	}) => {
 		const holder = new THREE.Group();
 		holder.position.set(x, y, z);
@@ -223,7 +257,7 @@ export function createSceneKit({
 				root.position.y -= bounds.min.y;
 				root.traverse(obj => {
 					if (!(obj instanceof THREE.Mesh)) return;
-					obj.castShadow = true;
+					obj.castShadow = castShadow;
 					obj.receiveShadow = true;
 					const material = obj.material;
 					if (material instanceof THREE.MeshStandardMaterial) {
